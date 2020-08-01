@@ -13,6 +13,7 @@ def compute_cm(gt_val, preds_val, classes):
 
 def split_dataset(data, labels, Ts):
     N = data.shape[0]
+    Ts = [int(v * N) for v in Ts]
     rand_idx = np.random.permutation(N)
     data = data[rand_idx]
     labels = labels[rand_idx]
