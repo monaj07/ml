@@ -11,16 +11,23 @@ def compute_cm(gt_val, preds_val, classes):
     return np.round(recall, 2), np.round(precision, 2)
 
 
-def split_dataset(data, labels, Ts):
+def split_dataset(data, labels, split):
+    # skLearn could be used as well for easily splitting the data
     N = data.shape[0]
-    Ts = [int(v * N) for v in Ts]
+    split = [int(v * N) for v in split]
     rand_idx = np.random.permutation(N)
     data = data[rand_idx]
     labels = labels[rand_idx]
-    data_train = data[:Ts[0], :]
-    labels_train = labels[:Ts[0]]
-    data_val = data[Ts[0]:Ts[1], :]
-    labels_val = labels[Ts[0]:Ts[1]]
-    data_test = data[Ts[1]:, :]
-    labels_test = labels[Ts[1]:]
-    return data_train, labels_train, data_val, labels_val, data_test, labels_test
+    if len(split) == 1:
+        return data, labels
+    split = split[:-1]
+    if len(split) == 1:
+        data_train, data_val = np.split(data, split)
+        labels_train, labels_val = np.split(labels, split)
+        return data_train, labels_train, data_val, labels_val
+    elif len(split) == 2:
+        data_train, data_val, data_test = np.split(data, split)
+        labels_train, labels_val, labels_test = np.split(labels, split)
+        return data_train, labels_train, data_val, labels_val, data_test, labels_test
+    else:
+        raise NotImplementedError
