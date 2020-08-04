@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 
-class Model(nn.Module):
+class MLP(nn.Module):
     def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0):
         super().__init__()
         self.init_complete = False
@@ -13,7 +13,7 @@ class Model(nn.Module):
         self.init_complete = True
 
     def reconstruct(self):
-        layers = Model._collate_layers(self.input_size, self.nclasses, self.hidden_layers, self.dropout)
+        layers = self.__class__._collate_layers(self.input_size, self.nclasses, self.hidden_layers, self.dropout)
         self.net = nn.Sequential(*layers)
 
     @staticmethod
