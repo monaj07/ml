@@ -2,3 +2,5 @@
 __pyca*
 .vscode
 /uncertainty/.ipynb_checkpoints/
+/alaki.py
+/uncertainty/data/
