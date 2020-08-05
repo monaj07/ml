@@ -2,23 +2,25 @@ import torch.nn as nn
 
 
 class MLP(nn.Module):
-    def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0):
+    def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0, dropout_input=0):
         super().__init__()
         self.init_complete = False
         self.input_size = input_size
         self.nclasses = nclasses
         self.hidden_layers = hidden_layers
         self.dropout = dropout
+        self.dropout_input = dropout_input
         self.reconstruct()
         self.init_complete = True
 
     def reconstruct(self):
-        layers = self.__class__._collate_layers(self.input_size, self.nclasses, self.hidden_layers, self.dropout)
+        layers = self.__class__._collate_layers(self.input_size, self.nclasses, self.hidden_layers,
+                                                self.dropout, self.dropout_input)
         self.net = nn.Sequential(*layers)
 
     @staticmethod
-    def _collate_layers(fs, nclasses, hidden_layers, dropout):
-        layers = []
+    def _collate_layers(fs, nclasses, hidden_layers, dropout, dropout_input):
+        layers = [nn.Dropout(dropout_input)] if dropout_input else []
         for idx in range(len(hidden_layers)):
             input_size = fs if idx == 0 else hidden_layers[idx-1]
             layers.append(nn.Linear(input_size, hidden_layers[idx]))
