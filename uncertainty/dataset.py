@@ -38,3 +38,20 @@ class RandomTestDataset(data.Dataset):
         if self.transform:
             image = self.transform(image)
         return image, image_file
+
+
+class TimeSeriesDataset(data.Dataset):
+    def __init__(self, input_data, labels, normalize=False):
+        self.input_data = input_data
+        self.labels = labels
+        self.normalize = normalize
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        label = self.labels[idx]
+        input_data = self.input_data[idx, :]
+        if self.normalize:
+            input_data = (input_data - self.data_mean) / self.data_std
+        return input_data, label

@@ -73,3 +73,20 @@ class MLP(nn.Module):
             self._dropout = 0
         if self.init_complete:
             self.reconstruct()
+
+
+class MLR(MLP):
+    def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0, dropout_input=0):
+        super().__init__(input_size, nclasses, hidden_layers, dropout, dropout_input)
+
+    @staticmethod
+    def _collate_layers(fs, nclasses, hidden_layers, dropout, dropout_input):
+        layers = [nn.Dropout(dropout_input)] if dropout_input else []
+        for idx in range(len(hidden_layers)):
+            input_size = fs if idx == 0 else hidden_layers[idx-1]
+            layers.append(nn.Linear(input_size, hidden_layers[idx]))
+            if dropout:
+                layers.append(nn.Dropout(dropout))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(hidden_layers[-1], nclasses))
+        return layers
