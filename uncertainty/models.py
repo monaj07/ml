@@ -2,7 +2,7 @@ import torch.nn as nn
 
 
 class MLP(nn.Module):
-    def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0, dropout_input=0):
+    def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0, dropout_input=0, batch_norm=False):
         super().__init__()
         self.init_complete = False
         self.input_size = input_size
@@ -10,23 +10,26 @@ class MLP(nn.Module):
         self.hidden_layers = hidden_layers
         self.dropout = dropout
         self.dropout_input = dropout_input
+        self.batch_norm = batch_norm
         self.reconstruct()
         self.init_complete = True
 
     def reconstruct(self):
         layers = self.__class__._collate_layers(self.input_size, self.nclasses, self.hidden_layers,
-                                                self.dropout, self.dropout_input)
+                                                self.dropout, self.dropout_input, self.batch_norm)
         self.net = nn.Sequential(*layers)
 
     @staticmethod
-    def _collate_layers(fs, nclasses, hidden_layers, dropout, dropout_input):
+    def _collate_layers(fs, nclasses, hidden_layers, dropout, dropout_input, batch_norm):
         layers = [nn.Dropout(dropout_input)] if dropout_input else []
         for idx in range(len(hidden_layers)):
             input_size = fs if idx == 0 else hidden_layers[idx-1]
             layers.append(nn.Linear(input_size, hidden_layers[idx]))
+            if batch_norm:
+                layers.append(nn.BatchNorm1d(hidden_layers[idx]))
+            layers.append(nn.ReLU6())
             if dropout:
                 layers.append(nn.Dropout(dropout))
-            layers.append(nn.ReLU6())
         layers.append(nn.Linear(hidden_layers[-1], nclasses))
         return layers
 
@@ -76,17 +79,19 @@ class MLP(nn.Module):
 
 
 class MLR(MLP):
-    def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0, dropout_input=0):
-        super().__init__(input_size, nclasses, hidden_layers, dropout, dropout_input)
+    def __init__(self, input_size, nclasses, hidden_layers=None, dropout=0, dropout_input=0, batch_norm=False):
+        super().__init__(input_size, nclasses, hidden_layers, dropout, dropout_input, batch_norm)
 
     @staticmethod
-    def _collate_layers(fs, nclasses, hidden_layers, dropout, dropout_input):
+    def _collate_layers(fs, nclasses, hidden_layers, dropout, dropout_input, batch_norm):
         layers = [nn.Dropout(dropout_input)] if dropout_input else []
         for idx in range(len(hidden_layers)):
             input_size = fs if idx == 0 else hidden_layers[idx-1]
             layers.append(nn.Linear(input_size, hidden_layers[idx]))
+            if batch_norm:
+                layers.append(nn.BatchNorm1d(hidden_layers[idx]))
+            layers.append(nn.ReLU())
             if dropout:
                 layers.append(nn.Dropout(dropout))
-            layers.append(nn.ReLU())
         layers.append(nn.Linear(hidden_layers[-1], nclasses))
         return layers
