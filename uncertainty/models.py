@@ -25,9 +25,9 @@ class MLP(nn.Module):
         for idx in range(len(hidden_layers)):
             input_size = fs if idx == 0 else hidden_layers[idx-1]
             layers.append(nn.Linear(input_size, hidden_layers[idx]))
+            layers.append(nn.ReLU6())
             if batch_norm:
                 layers.append(nn.BatchNorm1d(hidden_layers[idx]))
-            layers.append(nn.ReLU6())
             if dropout:
                 layers.append(nn.Dropout(dropout))
         layers.append(nn.Linear(hidden_layers[-1], nclasses))
@@ -88,9 +88,9 @@ class MLR(MLP):
         for idx in range(len(hidden_layers)):
             input_size = fs if idx == 0 else hidden_layers[idx-1]
             layers.append(nn.Linear(input_size, hidden_layers[idx]))
+            layers.append(nn.ReLU())
             if batch_norm:
                 layers.append(nn.BatchNorm1d(hidden_layers[idx]))
-            layers.append(nn.ReLU())
             if dropout:
                 layers.append(nn.Dropout(dropout))
         layers.append(nn.Linear(hidden_layers[-1], nclasses))
