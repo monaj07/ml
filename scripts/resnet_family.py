@@ -91,13 +91,12 @@ class ResNet(nn.Module):
         return out
 
 
-def resnet20_cifar(pretrained=True):
+def resnet20_cifar(pretrained_weights=None):
     model = ResNet(BasicBlock, [3, 3, 3])
-    if pretrained:
-        weights = torch.load('./weights/resnet20.th', map_location=torch.device('cpu'))['state_dict']
+    if pretrained_weights:
         # create new OrderedDict that does not contain `module.`
         new_state_dict = OrderedDict()
-        for k, v in weights.items():
+        for k, v in pretrained_weights.items():
             name = k[7:]  # remove `module.`
             new_state_dict[name] = v
         # load params
