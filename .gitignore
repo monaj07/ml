@@ -1,6 +1,9 @@
 .idea
 __pyca*
 .vscode
-/uncertainty/.ipynb_checkpoints/
+.ipynb_checkpoints/
 /alaki.py
 /uncertainty/data/
+/tsa/data/
+/tsa/weights/
+/nlp/data/
