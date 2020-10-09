@@ -16,14 +16,14 @@ class RNN(nn.Module):
         self.hidden_size = hidden_size
         self.device = device
         self.rnn = nn.GRU(input_size, hidden_size, num_rnn_layers, batch_first=True)
-        self.fc1 = nn.Linear(hidden_size*seq_len, num_classes)
+        self.fc1 = nn.Linear(hidden_size, num_classes)
 
     def forward(self, x):
         h0 = torch.zeros(self.num_rnn_layers, x.shape[0], self.hidden_size).to(self.device)
 
         out, _ = self.rnn(x, h0)
-        out = out.reshape(out.shape[0], -1)
-        out = self.fc1(out)
+        # out = out.reshape(out.shape[0], -1)
+        out = self.fc1(out[:, -1, :])
         return out
 
 
