@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import string
 import torch
 import torch.nn as nn
@@ -36,6 +37,7 @@ class Generation:
         self.all_characters = string.printable
         vocab_size = len(self.all_characters)
         self.rnn = RNN(vocab_size, num_rnn_layers, hidden_size, vocab_size).to(device)
+        self.temperature = 0.85
 
     def char_tensor(self, text):
         output = [self.all_characters.index(c) for c in text]
@@ -57,9 +59,15 @@ class Generation:
             output = self.char_tensor(data[1:]).to(device=device)
             h, c = self.rnn.init_weights(1)
             loss = 0
-
             for idx in range(length):
-                out, (h, c) = self.rnn(input[idx].unsqueeze(0), h, c)
+                if idx > 0 and it > 1000 and np.random.choice(1+(iterations - it)//500) == 0:
+                    # Teacher forcing (Thanks to Sadegh Aliakbarian for introducing me to this idea)
+                    out_wide = out.data.view(-1).div(self.temperature).exp()
+                    out = torch.multinomial(out_wide, 1)
+                    in_char = self.char_tensor(self.all_characters[out.item()]).to(device=device)
+                else:
+                    in_char = input[idx]
+                out, (h, c) = self.rnn(in_char.unsqueeze(0), h, c)
                 loss += F.cross_entropy(out, output[idx].unsqueeze(0))
             loss.backward()
             optimizer.step()
@@ -70,7 +78,7 @@ class Generation:
                 loss_avg = 0
                 print(self.generate())
 
-    def generate(self, initial='M', length=50, temperature=0.85):
+    def generate(self, initial='M', length=50):
         self.rnn.eval()
         initial_input = self.char_tensor(initial).to(device=device)
         h, c = self.rnn.init_weights(1)
@@ -81,7 +89,7 @@ class Generation:
         out = initial_input[-1].unsqueeze(0)
         for idx in range(len(initial) - 1, length):
             out, (h, c) = self.rnn(out, h, c)
-            out_wide = out.data.view(-1).div(temperature).exp()
+            out_wide = out.data.view(-1).div(self.temperature).exp()
             out = torch.multinomial(out_wide, 1)
             prediction.append(self.all_characters[out.item()])
         return "".join(prediction)
@@ -90,3 +98,5 @@ class Generation:
 generator = Generation()
 generator.train()
 print(generator.generate())
+with open('models/text_generator.pkl', 'wb') as f:
+    pickle.dump(generator, f)

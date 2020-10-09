@@ -7,3 +7,4 @@ __pyca*
 /tsa/data/
 /tsa/weights/
 /nlp/data/
+/nlp/models/
