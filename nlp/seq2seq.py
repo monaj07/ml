@@ -71,14 +71,21 @@ class Seq2Seq(nn.Module):
 
     def forward(self, input_seq, target_seq, teacher_forcing=0.5):
         h, c = self.encoder(input_seq)
-        out, h, c = self.decoder(target_seq[0].unsqueeze(0), h, c)
-        output = [out]
+        output = []
+        x = target_seq[0].unsqueeze(0)
         for it in range(1, len(target_seq)):
-            if np.random.rand(1) > teacher_forcing:
-                out, h, c = self.decoder(target_seq[it].unsqueeze(0), h, c)
+            out, h, c = self.decoder(x, h, c)
+            if np.random.rand(1) < teacher_forcing:
+                x = target_seq[it].unsqueeze(0)
             else:
-                out, h, c = self.decoder(out.argmax(dim=-1), h, c)
+                x = out.argmax(dim=-1)
             output.append(out)
+        # Append a zero pre
+        # Initial sos:
+        init_sos = 0 * output[0]
+        init_sos[:, :, 2] = 1
+        # Append the init_sos to the beginning of the output vector
+        output = [init_sos] + output
         output = torch.cat(output, dim=0)
         return output
 
@@ -94,7 +101,7 @@ class Seq2Seq(nn.Module):
         with torch.no_grad():
             sos = english_field.vocab.stoi['<sos>']
             dummy_target = torch.tensor([sos]*max_length).unsqueeze(1).to(device)
-            output = self.forward(tokenised_german_tensor, dummy_target, teacher_forcing=1)
+            output = self.forward(tokenised_german_tensor, dummy_target, teacher_forcing=0)
         output = output.argmax(dim=-1).squeeze()
         output_str = []
         for word in output:
@@ -102,7 +109,7 @@ class Seq2Seq(nn.Module):
             if word == '<eos>':
                 break
             output_str.append(word)
-        output_str = " ".join(output_str)
+        output_str = " ".join(output_str[1:])
         return output_str
 
 
