@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchtext.data import Field, BucketIterator
+from torchtext.data.metrics import bleu_score
 from torchtext.datasets import Multi30k
 from tqdm import tqdm
 
@@ -22,13 +23,48 @@ spacy_en = spacy.load('en')
 spacy_de = spacy.load('de')
 
 
+def bleu(test_data, model, field_de, field_en):
+    targets = []
+    outputs = []
+
+    for example in test_data:
+        src = vars(example)["src"]
+        trg = vars(example)["trg"]
+
+        prediction = translate(model, src, field_de, field_en, max_output_len=50)
+        prediction = prediction[:-1]  # remove <eos> token
+
+        targets.append([trg])
+        outputs.append(prediction)
+
+    return bleu_score(outputs, targets)
+
+
+# def bleu(model, field_de, field_en):
+#     targets = []
+#     outputs = []
+#     src = "ein boot mit mehreren männern darauf wird von einem großen pferdegespann ans ufer gezogen".split(" ")
+#     trg = "a boat with several men on it is being pulled ashore by a large team of horses".split(" ")
+#     # prediction = translate(model, src, field_de, field_en, max_output_len=50)
+#     prediction = ['a', 'boat', 'with', 'several', 'men', 'begins', 'to', 'a', 'a', 'large', 'large', 'large', 'large', '<unk>', '<eos>']
+#     prediction = prediction[:-1]  # remove <eos> token
+#     targets.append([trg])
+#     outputs.append(prediction)
+#     return bleu_score(outputs, targets)
+
+
 def translate(seq2seq, german_sentence, field_en, field_de, max_output_len=50):
     seq2seq.eval()
     encoder = seq2seq.encoder
     decoder = seq2seq.decoder
     device = next(seq2seq.parameters()).device
     # Pre-processing the example input german sentence:
-    german_sentence_tokenized = [token.text for token in spacy_de.tokenizer(german_sentence)]
+    if isinstance(german_sentence, str):
+        german_sentence_tokenized = [token.text for token in spacy_de.tokenizer(german_sentence)]
+    elif isinstance(german_sentence, list):
+        german_sentence_tokenized = german_sentence
+    else:
+        raise NotImplementedError
     german_sentence_tokenized.insert(0, field_de.init_token)
     german_sentence_tokenized.append(field_de.eos_token)
     german_sentence_indices = [field_de.vocab.stoi[token] for token in german_sentence_tokenized]
@@ -50,7 +86,6 @@ def translate(seq2seq, german_sentence, field_en, field_de, max_output_len=50):
         predictions.append(x)
 
     translation = [field_en.vocab.itos[idx] for idx in predictions]
-    translation = " ".join(translation)
     seq2seq.train()
     return translation
 
@@ -152,14 +187,14 @@ if __name__ == '__main__':
 
     train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
         (train_data, valid_data, test_data),
-        batch_size=128, device=device,
+        batch_size=64, device=device,
         sort_within_batch=True, sort_key=lambda x: len(x.src))
 
     german_vocab_size = len(field_de.vocab)
     english_vocab_size = len(field_en.vocab)
     word_embedding_size = 300
     num_rnn_layers = 2
-    hidden_size = 512
+    hidden_size = 1024
     dropout_p = 0.5
     n_epochs = 100
     lr = 0.001
@@ -176,23 +211,24 @@ if __name__ == '__main__':
                       dropout_p).to(device)
     seq2seq = Seq2Seq(encoder, decoder).to(device)
 
-    german_sentence = "ein boot mit mehreren männern darauf wird von einem großen pferdegespann ans ufer gezogen."
-    print("Tranlation using the model sofar:")
+    german_sentence = "Mehrere Leute gehen am Strand spazieren und spielen Fußball."
+    print("Tranlation using the model so far:")
     english_translation = translate(seq2seq, german_sentence,
                                     field_en, field_de,
                                     max_output_len=50)
-    print(english_translation)
 
     optimizer = optim.Adam(seq2seq.parameters(), lr=lr)
 
-    every = 100
+    score = bleu(test_data[1:100], seq2seq, field_de, field_en)
+    print(f"Bleu score {score * 100:.2f}")
+
     for epoch in range(n_epochs):
         loss_agg = []
         seq2seq.train()
         for it, batch in enumerate(train_iterator):
             input_seq, target_seq = batch.src, batch.trg
             output = seq2seq(input_seq.to(device), target_seq.to(device),
-                             teacher_forcing=0.5)
+                             teacher_forcing=max(0.5 - epoch / n_epochs, 0.05))
             loss = F.cross_entropy(output.reshape(-1, output.shape[-1]),
                                    target_seq[1:].reshape(-1),
                                    ignore_index=field_en.vocab.stoi[field_en.pad_token])
@@ -213,14 +249,15 @@ if __name__ == '__main__':
         with torch.no_grad():
             for it, batch in enumerate(valid_iterator):
                 input_seq, target_seq = batch.src, batch.trg
-                output = seq2seq(input_seq.to(device), target_seq.to(device))
+                output = seq2seq(input_seq.to(device), target_seq.to(device),
+                                 teacher_forcing=0)
                 loss = F.cross_entropy(output.view(-1, english_vocab_size),
                                        target_seq[1:].view(-1),
                                        ignore_index=field_en.vocab.stoi[field_en.pad_token])
                 loss_agg_val.append(loss.item())
             print(f"""Epoch {epoch}: Average validation loss: 
                       {np.round(sum(loss_agg_val) / len(loss_agg_val), 2)}""")
-            print("Tranlation using the model sofar:")
+            print("Tranlation using the model so far:")
             english_translation = translate(seq2seq, german_sentence,
                                             field_en, field_de,
                                             max_output_len=50)
