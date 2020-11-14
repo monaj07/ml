@@ -9,3 +9,4 @@ __pyca*
 /nlp/data/
 /nlp/models/
 /nlp/.data/
+/nlp/sentiment_analysis/.data/
