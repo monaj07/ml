@@ -8,3 +8,5 @@ __pyca*
 /tsa/weights/
 /nlp/data/
 /nlp/models/
+/nlp/.data/
+/nlp/sentiment_analysis/.data/
