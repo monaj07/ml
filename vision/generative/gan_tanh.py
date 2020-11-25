@@ -1,14 +1,11 @@
 from matplotlib import pyplot as plt
-import numpy as np
 import torch
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.utils.data.sampler import SubsetRandomSampler
 import torchvision
 from torchvision.transforms import transforms
-from tqdm import tqdm
 
 
 class Discriminator(nn.Module):
@@ -48,7 +45,7 @@ class Generator(nn.Module):
         self.mid_fcs = nn.ModuleList([nn.Linear(hidden_sizes[i],
                                                 hidden_sizes[i + 1])
                                       for i in range(len(hidden_sizes) - 1)])
-        self.bn_layers = nn.ModuleList([nn.BatchNorm1d(hidden_sizes[i+1], 0.8)
+        self.bn_layers = nn.ModuleList([nn.BatchNorm1d(hidden_sizes[i+1])
                                         for i in range(len(hidden_sizes) - 1)])
         self.out_fc = nn.Linear(hidden_sizes[-1], output_size)
 
@@ -141,7 +138,7 @@ def train_gan(G, D, input_noise_dim, train_loader, optimizer_G, optimizer_D, dev
 
 if __name__ == "__main__":
     input_size_gen = 100
-    hidden_sizes_gen = [128, 256, 512, 1024]
+    hidden_sizes_gen = [128, 256]
     hidden_sizes_dis = [512, 256]
     data_dim = 784  # 28 * 28
     batch_size_gen = 64
