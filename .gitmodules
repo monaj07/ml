@@ -1,0 +1,3 @@
+[submodule "vision/object_detection/yolov5"]
+	path = vision/object_detection/yolov5
+	url = https://github.com/monaj07/yolov5.git
