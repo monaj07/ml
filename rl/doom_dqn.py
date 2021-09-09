@@ -1,3 +1,10 @@
+from collections import deque
+import copy
+from datetime import datetime
+import logging
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 import random
 from skimage import transform
 from skimage.color import rgb2gray
@@ -6,12 +13,11 @@ from torch import nn
 import torch.nn.functional as F
 import time
 from vizdoom import *
-from collections import deque
-import matplotlib.pyplot as plt
-import numpy as np
 
 import warnings # This ignore all the warning messages that are normally printed during the training because of skiimage
 warnings.filterwarnings('ignore')
+
+logging.basicConfig(filename=f"{datetime.now().strftime('%Y-%m-%d--%H-%M')}.log", format='%(message)s', level=logging.INFO)
 
 
 def create_doom_env():
@@ -22,10 +28,10 @@ def create_doom_env():
         "../../../AppData/Local/Continuum/miniconda3/envs/py372/Lib/site-packages/vizdoom/scenarios/basic.wad")
     game.init()
 
-    shoot = [0, 0, 1]
     left = [1, 0, 0]
     right = [0, 1, 0]
-    possible_actions = [shoot, left, right]
+    shoot = [0, 0, 1]
+    possible_actions = [left, right, shoot]
 
     return game, possible_actions
 
@@ -63,6 +69,7 @@ class BuildQNet(nn.Module):
         self.conv_3 = nn.Conv2d(64, 128, 4, stride=2, padding=0)
         self.bn_3 = nn.BatchNorm2d(128)
         self.fc_1 = nn.Linear(8192, 512)
+        self.dropout = nn.Dropout(0.5)
         self.fc_2 = nn.Linear(512, num_actions)
 
     def forward(self, x):
@@ -78,7 +85,7 @@ class BuildQNet(nn.Module):
         # flatten layer
         x3 = torch.flatten(x3, start_dim=1)
         # dense + ELU
-        x4 = F.elu(self.fc_1(x3))
+        x4 = self.dropout(F.elu(self.fc_1(x3)))
         # output dense layer
         x5 = self.fc_2(x4)
         return x5
@@ -86,30 +93,24 @@ class BuildQNet(nn.Module):
 
 class DQNetwork:
     def __init__(self):
-        # whether the second part of the reward (max{Q(s', a'; theta)}) is computed earlier
-        # during observations (theta_constant=True),
-        # or using current parameter that is used for Q(s, a).
-        self.theta_constant = True
-
         # Exploration parameters for epsilon greedy strategy
-        self.epsilon_start = 1.0  # exploration probability at start
+        self.epsilon_start = .95  # exploration probability at start
         self.epsilon_stop = 0.01  # minimum exploration probability
         self.decay_rate = 0.0001  # exponential decay rate for exploration prob
 
         # TRAINING HYPERPARAMETERS
-        self.total_episodes = 500  # Total episodes for training
+        self.total_episodes = 1010  # Total episodes for training
         self.max_steps = 100  # Max possible steps in an episode
-        self.batch_size = 64
+        self.batch_size = 128
         self.training = True
-        self.current_episode = 0
         self.is_new_episode = True
 
         # Q learning hyperparameters
-        self.gamma = 0.95  # Discounting rate
+        self.gamma = 0.99  # Discounting rate
         self.learning_rate = 0.0002  # Alpha (aka learning rate)
 
         # MEMORY HYPERPARAMETERS
-        self.memory_size = 1000000  # Number of experiences the Memory can keep
+        self.memory_size = 50000  # Number of experiences the Memory can keep
         self.experience_box = deque([], maxlen=self.memory_size)
 
         # Input properties
@@ -121,91 +122,164 @@ class DQNetwork:
         self.game, self.possible_actions = create_doom_env()
         self.action_size = self.game.get_available_buttons_size()
 
+        # Set computing device
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device)
+
         # Building the Q-Network
         self.model = BuildQNet(self.action_size, self.stack_size)
+        self.model.to(device)
+        self.target_model = copy.deepcopy(self.model)
+        self.target_model.to(device)
+        self.target_update = 5
 
     def train(self):
         self.model.train()
-        optimizer = torch.optim.SGD(
-            self.model.parameters(),
-            lr=self.learning_rate,
-            momentum=0.99,
-            weight_decay=0.0005
-        )
+        # optimizer = torch.optim.SGD(
+        #     self.model.parameters(),
+        #     lr=self.learning_rate,
+        #     momentum=0.99,
+        #     weight_decay=0.0005
+        # )
+        optimizer = torch.optim.RMSprop(self.model.parameters())
+
+        total_steps_so_far = 0
 
         for episode in range(self.total_episodes):
             # Start a new episode
             self.game.new_episode()
-
-            # Set the value of epsilon for explore/exploit trade-off
-            epsilon = self.epsilon_stop + (
-                    (self.epsilon_start - self.epsilon_stop) *
-                    (1 - self.decay_rate) ** episode
-            )
 
             # self.new_episode is used to check if we are at the start of the spisode,
             # in which case the 4-channel stacked_frames is instantiated, using four
             # copies of the first frame of the episode (in the _stack_frames method):
             self.is_new_episode = True
 
+            epsilon = self.epsilon_stop
+            episode_loss = []
+            episode_rewards = []
+            explored_actions = []
+            actions_in_episode = [0, 0, 0]
             for _ in range(self.max_steps):
+                # Set the value of epsilon for explore/exploit trade-off
+                epsilon = self.epsilon_stop + (
+                        (self.epsilon_start - self.epsilon_stop) *
+                        np.exp(-self.decay_rate * total_steps_so_far)
+                )
+
                 # Append the transition (s, a, r, s') that is observed
                 # in the episode to the experience_box.
                 state = self.game.get_state()
                 img = state.screen_buffer
 
-                # Produce a transition
+                total_steps_so_far += 1
+
+                # Generate a transition
                 state_1 = self._stack_frames(img)
                 state_1_tensor = torch.tensor(state_1, dtype=torch.float32).unsqueeze(0)
-                action_1 = self._get_epsilon_greedy_action(state_1_tensor, epsilon)
+                action_1, explored = self._get_epsilon_greedy_action(state_1_tensor, epsilon, episode)
+                actions_in_episode[action_1] += 1
                 reward_1 = self.game.make_action(self.possible_actions[action_1])
-                state_2 = self._stack_frames(self.game.get_state().screen_buffer)
+                episode_rewards.append(reward_1)
+                explored_actions.append(explored)
+
+                # As soon as you make any action within the episode,
+                # you will be at least in the 2nd step of the episode onward,
+                # so the `is_new_episode` flag should be False
+                # to append subsequent frames to the previous stack: state_1 -> state_2
+                self.is_new_episode = False
+
                 next_state_is_terminal = self.game.is_episode_finished()
-                if self.theta_constant:
-                    # The full reward R = r + gamma * max_a2{Q(s2, a2; theta)} is computed here
-                    # during observation collection
-                    if not self.game.is_episode_finished():
-                        # If it is in a non-terminal step
-                        state_2_tensor = torch.tensor(state_2, dtype=torch.float32).unsqueeze(0)
-                        reward_1 += self.gamma * self.model(state_2_tensor).max().item()
+                # next_state_is_terminal = (reward_1 == 100)
+
+                if next_state_is_terminal:
+                    # Does not matter what you put in state_2,
+                    # since it is a terminal state
+                    # and its content won't contribute into the target_reward
+                    state_2 = 0 * state_1
+                else:
+                    state_2 = self._stack_frames(self.game.get_state().screen_buffer)
 
                 # Pack the transition into a tuple
                 transition = (state_1, action_1, reward_1, state_2, next_state_is_terminal)
 
                 # Append the transition to the experience replay box
-                self.experience_box.append(transition)
+                if 1:  # next_state_is_terminal or ((total_steps_so_far % 4) == 0):
+                    self.experience_box.append(transition)
 
                 # Sample a random minibatch of transitions from experience_box,
-                # if it is large enough.
-                if len(self.experience_box) >= self.batch_size:
-                    # Reset the gradients
-                    optimizer.zero_grad()
+                # every `q_update_freq` steps
+                q_update_freq = 2
+                if (total_steps_so_far % q_update_freq) == 0:
+                    if len(self.experience_box) >= 4 * self.batch_size:
+                        # Reset the gradients
+                        optimizer.zero_grad()
 
-                    # Create a minibatch
-                    minibatch = np.random.choice(self.experience_box, self.batch_size, replace=False)
+                        # Create a minibatch
+                        experience_numpy = np.array(self.experience_box)
+                        minibatch_indices = np.random.choice(experience_numpy.shape[0], self.batch_size, replace=False)
+                        minibatch = experience_numpy[minibatch_indices, :]
 
-                    # Calculate the predictions for Q(s1, a1; theta)
-                    s1_tensor = np.stack([transition[0] for transition in minibatch], axis=0)
-                    s1_qvalue = self.model(s1_tensor)
-                    target_reward_tensor = np.stack([transition[2] for transition in minibatch], axis=0)
+                        # Calculate the predictions for Q(s1, a1; theta)
+                        s1_tensor = torch.tensor(np.stack(minibatch[:, 0], axis=0), dtype=torch.float32)
+                        s1_qvalue = self.model(s1_tensor.to(self.device))
 
-                    if not self.theta_constant:
                         # Calculate the target rewards: R = r + gamma * max_a2{Q(s2, a2; theta)}, OR R = r
                         # Depending on whether we are in terminal state or not
-                        s2_is_terminal_tensor = np.stack([transition[4] for transition in minibatch], axis=0)
-                        s2_tensor = np.stack([transition[3] for transition in minibatch], axis=0)
-                        s2_max_qvalue = self.model(s2_tensor).max(dim=-1)
-                        target_reward_tensor = target_reward_tensor + (self.gamma *
-                                                                       s2_is_terminal_tensor *
-                                                                       s2_max_qvalue)
+                        target_reward_tensor = torch.tensor(np.stack(minibatch[:, 2], axis=0)).to(self.device)
+                        s2_is_terminal_tensor = torch.tensor(np.stack(minibatch[:, 4], axis=0)).to(self.device)
+                        s2_tensor = torch.tensor(np.stack(minibatch[:, 3], axis=0), dtype=torch.float32).to(self.device)
+                        with torch.no_grad():
+                            self.target_model.eval()
+                            s2_max_qvalue = self.target_model(s2_tensor).max(dim=-1)[0].detach()
+                        target_reward_tensor = target_reward_tensor + (
+                                self.gamma * (~s2_is_terminal_tensor) * s2_max_qvalue
+                        )
 
-                    loss = F.mse_loss(s1_qvalue, target_reward_tensor, reduction='mean')
-                    loss.backward()
-                    optimizer.step()
+                        loss = F.smooth_l1_loss(s1_qvalue, target_reward_tensor.float().view(-1, 1))
+                        # loss = F.mse_loss(s1_qvalue, target_reward_tensor.float().view(-1, 1), reduction='mean')
+                        loss.backward()
+                        for param in self.model.parameters():
+                            param.grad.data.clamp_(-1, 1)
+                        optimizer.step()
+                        episode_loss.append(loss.item())
 
-                self.is_new_episode = False
-                if self.game.is_episode_finished():
+                        # del experience_numpy
+
+                if next_state_is_terminal or self.game.is_episode_finished():
                     break
+            try:
+                print(f'episode: {episode},\t'
+                      f'num_steps: {len(episode_rewards)},\t'
+                      f'epsilon: {round(epsilon, 2)},\t'
+                      f'explored_actions: {round(100 * sum(explored_actions) / max(len(explored_actions), 1))}%,\t'
+                      f'actions: {actions_in_episode},\t'
+                      f'average_episode_loss = {round(sum(episode_loss) / float(max(len(explored_actions), 1)), 2)},\t'
+                      f'total_reward = {sum(episode_rewards)}')
+                logging.info(f'episode: {episode},\t'
+                             f'num_steps: {len(episode_rewards)},\t'
+                             f'epsilon: {round(epsilon, 2)},\t'
+                             f'explored_actions: {round(100 * sum(explored_actions) / max(len(explored_actions), 1))}%,\t'
+                             f'average_episode_loss = {round(sum(episode_loss) / float(max(len(explored_actions), 2)), 1)},\t'
+                             f'total_reward = {sum(episode_rewards)}')
+            except Exception as e:
+                print(f'exception:\n{e}')
+
+            if (episode % 100) == 0 and episode > 0:
+                try:
+                    print('taking snapshot from the trained model so far...')
+                    state = {
+                        'epoch': episode,
+                        'state_dict': self.model.state_dict(),
+                        'optimizer': optimizer.state_dict()
+                    }
+                    os.makedirs('doom_dqn_models', exist_ok=True)
+                    torch.save(state, os.path.join('doom_dqn_models', f'snapshot_episode_{episode}.pth'))
+                except Exception as e:
+                    print(f"Unable to save the model because:\n {e}")
+
+            # Update the target network, copying all weights and biases in DQN
+            if (episode % self.target_update) == 0:
+                self.target_model.load_state_dict(self.model.state_dict())
 
         self.game.close()
 
@@ -231,15 +305,18 @@ class DQNetwork:
         stacked_frames_numpy = np.stack(self.stacked_frames, axis=0)
         return stacked_frames_numpy
 
-    def _get_epsilon_greedy_action(self, state_1, epsilon):
+    def _get_epsilon_greedy_action(self, state_1, epsilon, episode):
         z = random.uniform(0, 1)
         if z <= epsilon:
+            explored = 1
             action_1 = np.random.choice(self.action_size)
         else:
-            self.model.eval()
-            action_1 = torch.argmax((self.model(state_1))).item()
-            self.model.train()
-        return action_1
+            explored = 0
+            with torch.no_grad():
+                self.model.eval()
+                action_1 = torch.argmax((self.model(state_1.to(self.device)))).item()
+                self.model.train()
+        return action_1, explored
 
 
 if __name__ == "__main__":
