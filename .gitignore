@@ -10,3 +10,6 @@ __pyca*
 /nlp/models/
 /nlp/.data/
 /nlp/sentiment_analysis/.data/
+*.ini
+*.log
+*.pth
