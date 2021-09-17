@@ -131,6 +131,7 @@ class DQLearning:
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
         self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=learning_rate)
+        self.double_dqn = False
 
     def get_screen(self):
         screen = self.env.render(mode='rgb_array').transpose((2, 0, 1))
@@ -254,10 +255,17 @@ class DQLearning:
                         1, minibatch_action_1.to(torch.int64).unsqueeze(1).to(self.device)
                     )
 
-                    # Calculate the target rewards: R = r + gamma * max_a2{Q(s2, a2; theta)}, OR R = r
+                    # Calculate the target rewards: R = r + gamma * max_a2{Q'(s2, a2; theta)}, OR R = r
                     # Depending on whether we are in terminal state or not
+                    # Note that for double-dqn, it would be r + gamma * Q'(s2, argmax{Q(s2, a2)})
                     with torch.no_grad():
-                        q_state_2_max = self.target_net(minibatch_state_2.to(self.device)).max(-1)[0].detach()
+                        if self.double_dqn:
+                            action_2_max = self.policy_net(minibatch_state_2.to(self.device)).max(-1)[1].detach()
+                            q_state_2_max = self.target_net(minibatch_state_2.to(self.device)).gather(
+                                1, action_2_max.unsqueeze(1)
+                            ).squeeze(1)
+                        else:
+                            q_state_2_max = self.target_net(minibatch_state_2.to(self.device)).max(-1)[0].detach()
                     q_state_1_target = minibatch_reward_1.to(self.device) + self.gamma * (
                         (1 - minibatch_finished).to(self.device) * q_state_2_max
                     )
