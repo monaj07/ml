@@ -47,7 +47,7 @@ def plot_durations(episode_durations):
 
 
 class DQN(nn.Module):
-    def __init__(self, h, w, outputs):
+    def __init__(self, h, w, outputs, dueling_dqn=False):
         super(DQN, self).__init__()
         self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
         self.bn1 = nn.BatchNorm2d(16)
@@ -55,6 +55,7 @@ class DQN(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
+        self.dueling_dqn = dueling_dqn
 
         # Number of Linear input connections depends on output of conv2d layers
         # and therefore the input image size, so compute it.
@@ -63,7 +64,11 @@ class DQN(nn.Module):
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
         linear_input_size = convw * convh * 32
-        self.head = nn.Linear(linear_input_size, outputs)
+        if self.dueling_dqn:
+            self.value_stream = nn.Linear(linear_input_size, 1)
+            self.advantage_stream = nn.Linear(linear_input_size, outputs)
+        else:
+            self.head = nn.Linear(linear_input_size, outputs)
 
     # Called with either one element to determine next action, or a batch
     # during optimization.
@@ -71,7 +76,14 @@ class DQN(nn.Module):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-        return self.head(x.view(x.size(0), -1))
+        if self.dueling_dqn:
+            value_stream = self.value_stream(x.view(x.size(0), -1))
+            advantage_stream = self.advantage_stream(x.view(x.size(0), -1))
+            advantage_stream -= advantage_stream.mean(dim=-1, keepdims=True)
+            q_values = value_stream + advantage_stream
+        else:
+            q_values = self.head(x.view(x.size(0), -1))
+        return q_values
 
 
 class DQLearning:
@@ -93,7 +105,7 @@ class DQLearning:
     Cartpole doesn’t have a particularly complex state space,
     so it’s likely that all states are useful for learning throughout an agents lifetime.
     """
-    def __init__(self):
+    def __init__(self, double_dqn=False, dueling_dqn=False):
 
         # Epsilon parameters
         self.current_epsilon = 0.9
@@ -131,13 +143,20 @@ class DQLearning:
         # the output of get_screen is a torch frame of shape (B, C, H, W)
         _, _, screen_height, screen_width = self.get_screen().shape
 
+        # Alternative DQN training
+        self.double_dqn = double_dqn
+        self.dueling_dqn = dueling_dqn
+
         # Q-network instantiation
-        self.policy_net = DQN(screen_height, screen_width, self.num_actions).to(self.device)
-        self.target_net = DQN(screen_height, screen_width, self.num_actions).to(self.device)
+        self.policy_net = DQN(screen_height, screen_width,
+                              self.num_actions,
+                              dueling_dqn=self.dueling_dqn).to(self.device)
+        self.target_net = DQN(screen_height, screen_width,
+                              self.num_actions,
+                              dueling_dqn=self.dueling_dqn).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
         self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=learning_rate)
-        self.double_dqn = False
 
     def _get_cart_location(self, screen_width):
         # x_threshold: maximum range of the cart to each side (in terms of units)
@@ -373,6 +392,6 @@ class DQLearning:
 
 
 if __name__ == "__main__":
-    dqlearner = DQLearning()
+    dqlearner = DQLearning(double_dqn=False, dueling_dqn=False)
     dqlearner.train()
     # dqlearner.test('dqn_models/snapshot_episode_149_reward_143.0.pth', num_test_episodes=10)
