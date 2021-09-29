@@ -13,3 +13,4 @@ __pyca*
 *.ini
 *.log
 *.pth
+/drl/run_agent_environment/results/

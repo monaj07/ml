@@ -1,0 +1,2 @@
+## Overview
+In this path, I am going to implement state-of-the-art Deep Reinforcement Learning algorithms. Most of the codes are inspired/borrowed from [Petros Christodoulou's](https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch) GitHub page.
