@@ -3,6 +3,7 @@ import numpy as np
 import random
 import torch
 
+
 class Epsilon_Greedy_Exploration(Base_Exploration_Strategy):
     """Implements an epsilon greedy exploration strategy"""
     def __init__(self, config):

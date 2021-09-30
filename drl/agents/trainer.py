@@ -79,18 +79,29 @@ class Trainer:
             agent_name = agent_class.agent_name
             self.run_games_for_agent(agent_number + 1, agent_class)
             if self.config.visualise_overall_agent_results:
-                agent_rolling_score_results = [results[1] for results in  self.results[agent_name]]
-                self.visualise_overall_agent_results(agent_rolling_score_results, agent_name, show_mean_and_std_range=True)
-        if self.config.file_to_save_data_results: self.save_obj(self.results, self.config.file_to_save_data_results)
-        if self.config.file_to_save_results_graph: plt.savefig(self.config.file_to_save_results_graph, bbox_inches="tight")
+                agent_rolling_score_results = [results[1] for results in self.results[agent_name]]
+                self.visualise_overall_agent_results(
+                    agent_rolling_score_results,
+                    agent_name,
+                    show_mean_and_std_range=True
+                )
+        if self.config.file_to_save_data_results:
+            self.save_obj(self.results, self.config.file_to_save_data_results)
+        if self.config.file_to_save_results_graph:
+            plt.savefig(self.config.file_to_save_results_graph, bbox_inches="tight")
         plt.show()
         return self.results
 
     def create_object_to_store_results(self):
         """Creates a dictionary that we will store the results in if it doesn't exist, otherwise it loads it up"""
-        if self.config.overwrite_existing_results_file or not self.config.file_to_save_data_results or not os.path.isfile(self.config.file_to_save_data_results):
+        if any(
+                [self.config.overwrite_existing_results_file,
+                 not self.config.file_to_save_data_results,
+                 not os.path.isfile(self.config.file_to_save_data_results)]
+        ):
             results = {}
-        else: results = self.load_obj(self.config.file_to_save_data_results)
+        else:
+            results = self.load_obj(self.config.file_to_save_data_results)
         return results
 
     def run_games_for_agent(self, agent_number, agent_class):
@@ -101,23 +112,33 @@ class Trainer:
         for run in range(self.config.runs_per_agent):
             agent_config = copy.deepcopy(self.config)
 
-            if self.environment_has_changeable_goals(agent_config.environment) and self.agent_cant_handle_changeable_goals_without_flattening(agent_name):
+            if (self.environment_has_changeable_goals(agent_config.environment) and
+                    self.agent_cant_handle_changeable_goals_without_flattening(agent_name)):
                 print("Flattening changeable-goal environment for agent {}".format(agent_name))
-                agent_config.environment = gym.wrappers.FlattenDictWrapper(agent_config.environment,
-                                                                           dict_keys=["observation", "desired_goal"])
+                agent_config.environment = gym.wrappers.FlattenDictWrapper(
+                    agent_config.environment,
+                    dict_keys=["observation", "desired_goal"]
+                )
 
-            if self.config.randomise_random_seed: agent_config.seed = random.randint(0, 2**32 - 2)
+            if self.config.randomise_random_seed:
+                agent_config.seed = random.randint(0, 2**32 - 2)
             agent_config.hyperparameters = agent_config.hyperparameters[agent_name]
             print("AGENT NAME: {}".format(agent_name))
             print("\033[1m" + "{}.{}: {}".format(agent_number, agent_round, agent_name) + "\033[0m", flush=True)
             agent = agent_class(agent_config)
             self.environment_name = agent.environment_title
             print(agent.hyperparameters)
-            print("RANDOM SEED " , agent_config.seed)
+            print("RANDOM SEED ", agent_config.seed)
             game_scores, rolling_scores, time_taken = agent.run_n_episodes()
             print("Time taken: {}".format(time_taken), flush=True)
             self.print_two_empty_lines()
-            agent_results.append([game_scores, rolling_scores, len(rolling_scores), -1 * max(rolling_scores), time_taken])
+            agent_results.append(
+                [game_scores,
+                 rolling_scores,
+                 len(rolling_scores),
+                 -1 * max(rolling_scores),
+                 time_taken]
+            )
             if self.config.visualise_individual_results:
                 self.visualise_overall_agent_results([rolling_scores], agent_name, show_each_run=True)
                 plt.show()
@@ -138,8 +159,10 @@ class Trainer:
         assert isinstance(agent_results, list), "agent_results must be a list of lists, 1 set of results per list"
         assert isinstance(agent_results[0], list), "agent_results must be a list of lists, 1 set of results per list"
         assert bool(show_mean_and_std_range) ^ bool(show_each_run), "either show_mean_and_std_range or show_each_run must be true"
-        if not ax: ax = plt.gca()
-        if not color: color =  self.agent_to_color_group[agent_name]
+        if not ax:
+            ax = plt.gca()
+        if not color:
+            color = self.agent_to_color_group[agent_name]
         if show_mean_and_std_range:
             mean_minus_x_std, mean_results, mean_plus_x_std = self.get_mean_and_standard_deviation_difference_results(agent_results)
             x_vals = list(range(len(mean_results)))
@@ -164,7 +187,8 @@ class Trainer:
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15),
                   fancybox=True, shadow=True, ncol=3)
 
-        if not title: title = self.environment_name
+        if not title: title = \
+            self.environment_name
 
         ax.set_title(title, fontsize=15, fontweight='bold')
         ax.set_ylabel('Rolling Episode Scores')
@@ -172,8 +196,10 @@ class Trainer:
         self.hide_spines(ax, ['right', 'top'])
         ax.set_xlim([0, x_vals[-1]])
 
-        if y_limits is None: y_min, y_max = self.get_y_limits(agent_results)
-        else: y_min, y_max = y_limits
+        if y_limits is None:
+            y_min, y_max = self.get_y_limits(agent_results)
+        else:
+            y_min, y_max = y_limits
 
         ax.set_ylim([y_min, y_max])
 
@@ -197,7 +223,8 @@ class Trainer:
     def get_next_color(self):
         """Gets the next color in list self.colors. If it gets to the end then it starts from beginning"""
         self.colour_ix += 1
-        if self.colour_ix >= len(self.colors): self.colour_ix = 0
+        if self.colour_ix >= len(self.colors):
+            self.colour_ix = 0
         color = self.colors[self.colour_ix]
         return color
 
@@ -256,16 +283,22 @@ class Trainer:
     def visualise_preexisting_results(self, save_image_path=None, data_path=None, colors=None, show_image=True, ax=None,
                                       title=None, y_limits=None):
         """Visualises saved data results and then optionally saves the image"""
-        if not data_path: preexisting_results = self.create_object_to_store_results()
-        else: preexisting_results = self.load_obj(data_path)
+        if not data_path:
+            preexisting_results = self.create_object_to_store_results()
+        else:
+            preexisting_results = self.load_obj(data_path)
         for ix, agent in enumerate(list(preexisting_results.keys())):
             agent_rolling_score_results = [results[1] for results in preexisting_results[agent]]
-            if colors: color = colors[ix]
-            else: color = None
+            if colors:
+                color = colors[ix]
+            else:
+                color = None
             self.visualise_overall_agent_results(agent_rolling_score_results, agent, show_mean_and_std_range=True,
                                                  color=color, ax=ax, title=title, y_limits=y_limits)
-        if save_image_path: plt.savefig(save_image_path, bbox_inches="tight")
-        if show_image: plt.show()
+        if save_image_path:
+            plt.savefig(save_image_path, bbox_inches="tight")
+        if show_image:
+            plt.show()
 
     def visualise_set_of_preexisting_results(self, results_data_paths, save_image_path=None, show_image=True, plot_titles=None,
                                              y_limits=[None,None]):
@@ -288,7 +321,7 @@ class Trainer:
         fig.tight_layout()
         fig.subplots_adjust(bottom=0.25)
 
-        if save_image_path: plt.savefig(save_image_path) #, bbox_inches="tight")
-        if show_image: plt.show()
-
-        # ax.imshow(z, aspect="auto")
+        if save_image_path:
+            plt.savefig(save_image_path) #, bbox_inches="tight")
+        if show_image:
+            plt.show()

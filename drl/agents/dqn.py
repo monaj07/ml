@@ -18,10 +18,21 @@ class DQN(Base_Agent):
 
     def __init__(self, config):
         Base_Agent.__init__(self, config)
-        self.memory = Replay_Buffer(self.hyperparameters["buffer_size"], self.hyperparameters["batch_size"], config.seed, self.device)
-        self.q_network = self.create_neural_net(input_dim=self.state_size, output_dim=self.action_size)
-        self.q_network_optimizer = optim.Adam(self.q_network.parameters(),
-                                              lr=self.hyperparameters["learning_rate"], eps=1e-4)
+        self.memory = Replay_Buffer(
+            self.hyperparameters["buffer_size"],
+            self.hyperparameters["batch_size"],
+            config.seed,
+            self.device
+        )
+        self.q_network = self.create_neural_net(
+            input_dim=self.state_size,
+            output_dim=self.action_size
+        )
+        self.q_network_optimizer = optim.Adam(
+            self.q_network.parameters(),
+            lr=self.hyperparameters["learning_rate"],
+            eps=1e-4
+        )
         self.exploration_strategy = Epsilon_Greedy_Exploration(config)
 
     def create_neural_net(self, input_dim, output_dim):
@@ -46,7 +57,10 @@ class DQN(Base_Agent):
 
     def reset_game(self):
         super(DQN, self).reset_game()
-        self.update_learning_rate(self.hyperparameters["learning_rate"], self.q_network_optimizer)
+        self.update_learning_rate(
+            self.hyperparameters["learning_rate"],
+            self.q_network_optimizer
+        )
 
     def step(self):
         """Runs a step within a game including a learning step if required"""
@@ -65,30 +79,42 @@ class DQN(Base_Agent):
         """Uses the local Q network and an epsilon greedy policy to pick an action"""
         # PyTorch only accepts mini-batches and not single observations so we have to use unsqueeze to add
         # a "fake" dimension to make it a mini-batch rather than a single observation
-        if state is None: state = self.state
-        if isinstance(state, np.int64) or isinstance(state, int): state = np.array([state])
+        if state is None:
+            state = self.state
+        if isinstance(state, np.int64) or isinstance(state, int):
+            state = np.array([state])
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-        if len(state.shape) < 2: state = state.unsqueeze(0)
+        if len(state.shape) < 2:
+            state = state.unsqueeze(0)
         self.q_network.eval() #puts network in evaluation mode
         with torch.no_grad():
             action_values = self.q_network(state)
         self.q_network.train() #puts network back in training mode
-        action = self.exploration_strategy.perturb_action_for_exploration_purposes({"action_values": action_values,
-                                                                                    "turn_off_exploration": self.turn_off_exploration,
-                                                                                    "episode_number": self.episode_number})
+        action = self.exploration_strategy.perturb_action_for_exploration_purposes(
+            {"action_values": action_values,
+             "turn_off_exploration": self.turn_off_exploration,
+             "episode_number": self.episode_number}
+        )
         self.logger.info("Q values {} -- Action chosen {}".format(action_values, action))
         return action
 
     def learn(self, experiences=None):
         """Runs a learning iteration for the Q network"""
-        if experiences is None: states, actions, rewards, next_states, dones = self.sample_experiences() #Sample experiences
-        else: states, actions, rewards, next_states, dones = experiences
+        if experiences is None:
+            states, actions, rewards, next_states, dones = self.sample_experiences() #Sample experiences
+        else:
+            states, actions, rewards, next_states, dones = experiences
         loss = self.compute_loss(states, next_states, rewards, actions, dones)
 
         actions_list = [action_X.item() for action_X in actions ]
 
         self.logger.info("Action counts {}".format(Counter(actions_list)))
-        self.take_optimisation_step(self.q_network_optimizer, self.q_network, loss, self.hyperparameters["gradient_clipping_norm"])
+        self.take_optimisation_step(
+            self.q_network_optimizer,
+            self.q_network,
+            loss,
+            self.hyperparameters["gradient_clipping_norm"]
+        )
 
     def compute_loss(self, states, next_states, rewards, actions, dones):
         """Computes the loss required to train the Q network"""
@@ -111,7 +137,9 @@ class DQN(Base_Agent):
 
     def compute_q_values_for_current_states(self, rewards, Q_targets_next, dones):
         """Computes the q_values for current state we will use to create the loss to train the Q network"""
-        Q_targets_current = rewards + (self.hyperparameters["discount_rate"] * Q_targets_next * (1 - dones))
+        Q_targets_current = rewards + (
+                self.hyperparameters["discount_rate"] * Q_targets_next * (1 - dones)
+        )
         return Q_targets_current
 
     def compute_expected_q_values(self, states, actions):

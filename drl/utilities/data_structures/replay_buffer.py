@@ -6,7 +6,6 @@ import numpy as np
 
 class Replay_Buffer(object):
     """Replay buffer to store past experiences that the agent can then use for training data"""
-
     def __init__(self, buffer_size, batch_size, seed, device=None):
 
         self.memory = deque(maxlen=buffer_size)

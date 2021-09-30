@@ -9,11 +9,9 @@ import random
 import sys
 import time
 import torch
-from torch.optim import optimizer
 
 
 class Base_Agent(object):
-
     def __init__(self, config):
         self.logger = self.setup_logger()
         self.config = config
@@ -26,7 +24,7 @@ class Base_Agent(object):
 
         self.lowest_possible_episode_score = self.get_lowest_possible_episode_score()
 
-        self.state_size =  int(self.get_state_size())
+        self.state_size = int(self.get_state_size())
         self.hyperparameters = config.hyperparameters
         self.average_score_required_to_win = self.get_score_required_to_win()
         self.rolling_score_window = self.get_trials()
@@ -54,31 +52,43 @@ class Base_Agent(object):
             name = self.environment.unwrapped.id
         except AttributeError:
             try:
-                if str(self.environment.unwrapped)[1:11] == "FetchReach": return "FetchReach"
-                elif str(self.environment.unwrapped)[1:8] == "AntMaze": return "AntMaze"
-                elif str(self.environment.unwrapped)[1:7] == "Hopper": return "Hopper"
-                elif str(self.environment.unwrapped)[1:9] == "Walker2d": return "Walker2d"
+                if str(self.environment.unwrapped)[1:11] == "FetchReach":
+                    return "FetchReach"
+                elif str(self.environment.unwrapped)[1:8] == "AntMaze":
+                    return "AntMaze"
+                elif str(self.environment.unwrapped)[1:7] == "Hopper":
+                    return "Hopper"
+                elif str(self.environment.unwrapped)[1:9] == "Walker2d":
+                    return "Walker2d"
                 else:
                     name = self.environment.spec.id.split("-")[0]
             except AttributeError:
                 name = str(self.environment.env)
-                if name[0:10] == "TimeLimit<": name = name[10:]
+                if name[0:10] == "TimeLimit<":
+                    name = name[10:]
                 name = name.split(" ")[0]
-                if name[0] == "<": name = name[1:]
-                if name[-3:] == "Env": name = name[:-3]
+                if name[0] == "<":
+                    name = name[1:]
+                if name[-3:] == "Env":
+                    name = name[:-3]
         return name
 
     def get_lowest_possible_episode_score(self):
         """Returns the lowest possible episode score you can get in an environment"""
-        if self.environment_title == "Taxi": return -800
+        if self.environment_title == "Taxi":
+            return -800
         return None
 
     def get_action_size(self):
         """Gets the action_size for the gym env into the correct shape for a neural network"""
-        if "overwrite_action_size" in self.config.__dict__: return self.config.overwrite_action_size
-        if "action_size" in self.environment.__dict__: return self.environment.action_size
-        if self.action_types == "DISCRETE": return self.environment.action_space.n
-        else: return self.environment.action_space.shape[0]
+        if "overwrite_action_size" in self.config.__dict__:
+            return self.config.overwrite_action_size
+        if "action_size" in self.environment.__dict__:
+            return self.environment.action_size
+        if self.action_types == "DISCRETE":
+            return self.environment.action_space.n
+        else:
+            return self.environment.action_space.shape[0]
 
     def get_state_size(self):
         """Gets the state_size for the gym env into the correct shape for a neural network"""
@@ -92,11 +102,13 @@ class Base_Agent(object):
     def get_score_required_to_win(self):
         """Gets average score required to win game"""
         print("TITLE ", self.environment_title)
-        if self.environment_title == "FetchReach": return -5
+        if self.environment_title == "FetchReach":
+            return -5
         if self.environment_title in ["AntMaze", "Hopper", "Walker2d"]:
             print("Score required to win set to infinity therefore no learning rate annealing will happen")
             return float("inf")
-        try: return self.environment.unwrapped.reward_threshold
+        try:
+            return self.environment.unwrapped.reward_threshold
         except AttributeError:
             try:
                 return self.environment.spec.reward_threshold
@@ -105,9 +117,12 @@ class Base_Agent(object):
 
     def get_trials(self):
         """Gets the number of trials to average a score over"""
-        if self.environment_title in ["AntMaze", "FetchReach", "Hopper", "Walker2d", "CartPole"]: return 100
-        try: return self.environment.unwrapped.trials
-        except AttributeError: return self.environment.spec.trials
+        if self.environment_title in ["AntMaze", "FetchReach", "Hopper", "Walker2d", "CartPole"]:
+            return 100
+        try:
+            return self.environment.unwrapped.trials
+        except AttributeError:
+            return self.environment.spec.trials
 
     def setup_logger(self):
         """Sets up the logger"""
@@ -115,7 +130,8 @@ class Base_Agent(object):
         try:
             if os.path.isfile(filename):
                 os.remove(filename)
-        except: pass
+        except:
+            pass
 
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.INFO)
@@ -131,9 +147,17 @@ class Base_Agent(object):
 
     def log_game_info(self):
         """Logs info relating to the game"""
-        for ix, param in enumerate([self.environment_title, self.action_types, self.action_size, self.lowest_possible_episode_score,
-                      self.state_size, self.hyperparameters, self.average_score_required_to_win, self.rolling_score_window,
-                      self.device]):
+        for ix, param in enumerate(
+                [self.environment_title,
+                 self.action_types,
+                 self.action_size,
+                 self.lowest_possible_episode_score,
+                 self.state_size,
+                 self.hyperparameters,
+                 self.average_score_required_to_win,
+                 self.rolling_score_window,
+                 self.device]
+        ):
             self.logger.info("{} -- {}".format(ix, param))
 
     def set_random_seeds(self, random_seed):
@@ -168,7 +192,8 @@ class Base_Agent(object):
         self.episode_desired_goals = []
         self.episode_achieved_goals = []
         self.episode_observations = []
-        if "exploration_strategy" in self.__dict__.keys(): self.exploration_strategy.reset()
+        if "exploration_strategy" in self.__dict__.keys():
+            self.exploration_strategy.reset()
         self.logger.info("Reseting game -- New start state {}".format(self.state))
 
     def track_episodes_data(self):
@@ -186,18 +211,21 @@ class Base_Agent(object):
         while self.episode_number < num_episodes:
             self.reset_game()
             self.step()
-            if save_and_print_results: self.save_and_print_result()
+            if save_and_print_results:
+                self.save_and_print_result()
         time_taken = time.time() - start
-        if show_whether_achieved_goal: self.show_whether_achieved_goal()
-        if self.config.save_model: self.locally_save_policy()
+        if show_whether_achieved_goal:
+            self.show_whether_achieved_goal()
+        if self.config.save_model:
+            self.locally_save_policy()
         return self.game_full_episode_scores, self.rolling_results, time_taken
 
     def conduct_action(self, action):
         """Conducts an action in the environment"""
         self.next_state, self.reward, self.done, _ = self.environment.step(action)
         self.total_episode_score_so_far += self.reward
-        if self.hyperparameters["clip_rewards"]: self.reward =  max(min(self.reward, 1.0), -1.0)
-
+        if self.hyperparameters["clip_rewards"]:
+            self.reward = max(min(self.reward, 1.0), -1.0)
 
     def save_and_print_result(self):
         """Saves and prints results of the game"""
@@ -207,7 +235,9 @@ class Base_Agent(object):
     def save_result(self):
         """Saves the result of an episode of the game"""
         self.game_full_episode_scores.append(self.total_episode_score_so_far)
-        self.rolling_results.append(np.mean(self.game_full_episode_scores[-1 * self.rolling_score_window:]))
+        self.rolling_results.append(
+            np.mean(self.game_full_episode_scores[-1 * self.rolling_score_window:])
+        )
         self.save_max_result_seen()
 
     def save_max_result_seen(self):
@@ -222,8 +252,15 @@ class Base_Agent(object):
     def print_rolling_result(self):
         """Prints out the latest episode results"""
         text = """"\r Episode {0}, Score: {3: .2f}, Max score seen: {4: .2f}, Rolling score: {1: .2f}, Max rolling score seen: {2: .2f}"""
-        sys.stdout.write(text.format(len(self.game_full_episode_scores), self.rolling_results[-1], self.max_rolling_score_seen,
-                                     self.game_full_episode_scores[-1], self.max_episode_score_seen))
+        sys.stdout.write(
+            text.format(
+                len(self.game_full_episode_scores),
+                self.rolling_results[-1],
+                self.max_rolling_score_seen,
+                self.game_full_episode_scores[-1],
+                self.max_episode_score_seen
+            )
+        )
         sys.stdout.flush()
 
     def show_whether_achieved_goal(self):
@@ -262,7 +299,8 @@ class Base_Agent(object):
                 new_lr = starting_lr
             for g in optimizer.param_groups:
                 g['lr'] = new_lr
-        if random.random() < 0.001: self.logger.info("Learning rate {}".format(new_lr))
+        if random.random() < 0.001:
+            self.logger.info("Learning rate {}".format(new_lr))
 
     def enough_experiences_to_learn_from(self):
         """Boolean indicated whether there are enough experiences in the memory buffer to learn from"""
@@ -270,13 +308,16 @@ class Base_Agent(object):
 
     def save_experience(self, memory=None, experience=None):
         """Saves the recent experience to the memory buffer"""
-        if memory is None: memory = self.memory
-        if experience is None: experience = self.state, self.action, self.reward, self.next_state, self.done
+        if memory is None:
+            memory = self.memory
+        if experience is None:
+            experience = self.state, self.action, self.reward, self.next_state, self.done
         memory.add_experience(*experience)
 
     def take_optimisation_step(self, optimizer, network, loss, clipping_norm=None, retain_graph=False):
         """Takes an optimisation step by calculating gradients given the loss and then updating the parameters"""
-        if not isinstance(network, list): network = [network]
+        if not isinstance(network, list):
+            network = [network]
         optimizer.zero_grad() #reset gradients to 0
         loss.backward(retain_graph=retain_graph) #this calculates the gradients
         self.logger.info("Loss -- {}".format(loss.item()))
@@ -285,65 +326,6 @@ class Base_Agent(object):
                 torch.nn.utils.clip_grad_norm_(net.parameters(), clipping_norm) #clip gradients to help stabilise training
         optimizer.step() #this applies the gradients
 
-    def log_gradient_and_weight_information(self, network, optimizer):
-
-        # log weight information
-        total_norm = 0
-        for name, param in network.named_parameters():
-            param_norm = param.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        self.logger.info("Gradient Norm {}".format(total_norm))
-
-        for g in optimizer.param_groups:
-            learning_rate = g['lr']
-            break
-        self.logger.info("Learning Rate {}".format(learning_rate))
-
-    def soft_update_of_target_network(self, local_model, target_model, tau):
-        """Updates the target network in the direction of the local network but by taking a step size
-        less than one so the target network's parameter values trail the local networks. This helps stabilise training"""
-        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
-            target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
-
     def create_neural_net(self, input_dim, output_dim):
         """Creates a neural network for the agents to use"""
         raise NotImplementedError("The derived agent must implement its network")
-
-    def turn_on_any_epsilon_greedy_exploration(self):
-        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
-        print("Turning on epsilon greedy exploration")
-        self.turn_off_exploration = False
-
-    def turn_off_any_epsilon_greedy_exploration(self):
-        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
-        print("Turning off epsilon greedy exploration")
-        self.turn_off_exploration = True
-
-    def freeze_all_but_output_layers(self, network):
-        """Freezes all layers except the output layer of a network"""
-        print("Freezing hidden layers")
-        for param in network.named_parameters():
-            param_name = param[0]
-            assert "hidden" in param_name or "output" in param_name or "embedding" in param_name, "Name {} of network layers not understood".format(param_name)
-            if "output" not in param_name:
-                param[1].requires_grad = False
-
-    def unfreeze_all_layers(self, network):
-        """Unfreezes all layers of a network"""
-        print("Unfreezing all layers")
-        for param in network.parameters():
-            param.requires_grad = True
-
-    @staticmethod
-    def move_gradients_one_model_to_another(from_model, to_model, set_from_gradients_to_zero=False):
-        """Copies gradients from from_model to to_model"""
-        for from_model, to_model in zip(from_model.parameters(), to_model.parameters()):
-            to_model._grad = from_model.grad.clone()
-            if set_from_gradients_to_zero: from_model._grad = None
-
-    @staticmethod
-    def copy_model_over(from_model, to_model):
-        """Copies model parameters from from_model to to_model"""
-        for to_model, from_model in zip(to_model.parameters(), from_model.parameters()):
-            to_model.data.copy_(from_model.data.clone())
