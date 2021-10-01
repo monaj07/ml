@@ -10,6 +10,7 @@ import torch.optim as optim
 from agents.base_agent import Base_Agent
 from exploration_strategies.epsilon_greedy_exploration import EpsilonGreedyExploration
 from utilities.data_structures.replay_buffer import Replay_Buffer
+from utilities.networks import CNN, DenseTwoLayer
 
 
 class DQN(Base_Agent):
@@ -37,21 +38,10 @@ class DQN(Base_Agent):
 
     def create_neural_net(self, input_dim, output_dim):
         """Creates a neural network for the agents to use"""
-        class QNetwork(nn.Module):
-            def __init__(self, input_dim, output_dim):
-                super().__init__()
-                self.layers = nn.Sequential(
-                    nn.Linear(input_dim, 30),
-                    nn.ReLU(),
-                    nn.Linear(30, 15),
-                    nn.ReLU(),
-                    nn.Linear(15, output_dim)
-                )
-
-            def forward(self, x):
-                output = self.layers(x)
-                return output
-
+        if isinstance(input_dim, tuple):
+            QNetwork = CNN
+        else:
+            QNetwork = DenseTwoLayer
         model = QNetwork(input_dim, output_dim).to(self.device)
         return model
 
@@ -75,6 +65,8 @@ class DQN(Base_Agent):
                 # Go through a learning iteration
                 for _ in range(self.hyperparameters["learning_iterations"]):
                     self.learn()
+            if self.get_visual_state is not None:
+                self.next_state = self.get_visual_state(self)
             self.save_experience()
             self.state = self.next_state  # this is to set the state for the next iteration
             self.global_step_number += 1
@@ -95,9 +87,10 @@ class DQN(Base_Agent):
         with torch.no_grad():
             action_values = self.q_network(state)
         self.q_network.train() #puts network back in training mode
-        action = self.exploration_strategy.perturb_action_for_exploration_purposes(
+        action, self.epsilon = self.exploration_strategy.perturb_action_for_exploration_purposes(
             {"action_values": action_values,
-             "episode_number": self.episode_number}
+             "episode_number": self.episode_number,
+             "global_step_number": self.global_step_number}
         )
         self.logger.info("Q values {} -- Action chosen {}".format(action_values, action))
         return action
@@ -141,14 +134,14 @@ class DQN(Base_Agent):
 
     def compute_q_values_for_current_states(self, rewards, Q_targets_next, dones):
         """Computes the q_values for current state we will use to create the loss to train the Q network"""
-        Q_targets_current = rewards + (
-                self.hyperparameters["discount_rate"] * Q_targets_next * (1 - dones)
+        Q_targets_current = rewards.unsqueeze(1) + (
+                self.hyperparameters["discount_rate"] * Q_targets_next * (1 - dones.unsqueeze(1))
         )
         return Q_targets_current
 
     def compute_expected_q_values(self, states, actions):
         """Computes the expected q_values we will use to create the loss to train the Q network"""
-        Q_expected = self.q_network(states).gather(1, actions.long()) #must convert actions to long so can be used as index
+        Q_expected = self.q_network(states).gather(1, actions.unsqueeze(1).long()) #must convert actions to long so can be used as index
         return Q_expected
 
     def locally_save_policy(self):

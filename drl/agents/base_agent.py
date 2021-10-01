@@ -22,7 +22,13 @@ class Base_Agent(object):
         self.action_size = int(self.get_action_size())
         self.config.action_size = self.action_size
 
-        self.state_size = int(self.get_state_size())
+        self.state = self.environment.reset()
+        self.get_visual_state = self.config.get_visual_state
+        if self.get_visual_state is not None:
+            self.state = self.get_visual_state(self, episode_start=True)
+            self.state_size = self.state.shape[1:]
+        else:
+            self.state_size = int(self.get_state_size())
         self.hyperparameters = config.hyperparameters
         self.average_score_required_to_win = self.get_score_required_to_win()
         self.rolling_score_window = self.get_trials()
@@ -39,6 +45,8 @@ class Base_Agent(object):
         self.turn_off_exploration = False
         gym.logger.set_level(40)  # stops it from printing an unnecessary warning
         self.log_game_info()
+        self.get_visual_state = self.config.get_visual_state
+        self.epsilon = 1.0
 
     def run_one_episode(self):
         """Run through one episode in the game.
@@ -171,6 +179,8 @@ class Base_Agent(object):
         """Resets the game information so we are ready to play a new episode"""
         self.environment.seed(self.config.seed)
         self.state = self.environment.reset()
+        if self.get_visual_state is not None:
+            self.state = self.get_visual_state(self, episode_start=True)
         self.next_state = None
         self.action = None
         self.reward = None
@@ -207,6 +217,8 @@ class Base_Agent(object):
     def take_action(self, action):
         """take an action in the environment"""
         self.next_state, self.reward, self.done, _ = self.environment.step(action)
+        if self.get_visual_state is not None:
+            self.next_state = self.get_visual_state(self)
         self.total_episode_score_so_far += self.reward
         if self.hyperparameters["clip_rewards"]:
             self.reward = max(min(self.reward, 1.0), -1.0)
@@ -230,6 +242,7 @@ class Base_Agent(object):
         text += f""" Max score seen: {self.max_episode_score_seen:.2f}, """
         text += f""" Rolling score: {self.rolling_results[-1]:.2f}, """
         text += f""" Max rolling score seen: {self.max_rolling_score_seen:.2f}"""
+        text += f""" Epsilon: {self.epsilon:.2f}"""
         sys.stdout.write(text)
         sys.stdout.flush()
 
