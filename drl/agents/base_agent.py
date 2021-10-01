@@ -22,8 +22,6 @@ class Base_Agent(object):
         self.action_size = int(self.get_action_size())
         self.config.action_size = self.action_size
 
-        self.lowest_possible_episode_score = self.get_lowest_possible_episode_score()
-
         self.state_size = int(self.get_state_size())
         self.hyperparameters = config.hyperparameters
         self.average_score_required_to_win = self.get_score_required_to_win()
@@ -42,8 +40,9 @@ class Base_Agent(object):
         gym.logger.set_level(40)  # stops it from printing an unnecessary warning
         self.log_game_info()
 
-    def step(self):
-        """Takes a step in the game. This method must be overriden by any agent"""
+    def run_one_episode(self):
+        """Run through one episode in the game.
+        This method must be overridden by any agent"""
         raise ValueError("Step needs to be implemented by the agent")
 
     def get_environment_title(self):
@@ -72,12 +71,6 @@ class Base_Agent(object):
                 if name[-3:] == "Env":
                     name = name[:-3]
         return name
-
-    def get_lowest_possible_episode_score(self):
-        """Returns the lowest possible episode score you can get in an environment"""
-        if self.environment_title == "Taxi":
-            return -800
-        return None
 
     def get_action_size(self):
         """Gets the action_size for the gym env into the correct shape for a neural network"""
@@ -151,7 +144,6 @@ class Base_Agent(object):
                 [self.environment_title,
                  self.action_types,
                  self.action_size,
-                 self.lowest_possible_episode_score,
                  self.state_size,
                  self.hyperparameters,
                  self.average_score_required_to_win,
@@ -196,23 +188,15 @@ class Base_Agent(object):
             self.exploration_strategy.reset()
         self.logger.info("Reseting game -- New start state {}".format(self.state))
 
-    def track_episodes_data(self):
-        """Saves the data from the recent episodes"""
-        self.episode_states.append(self.state)
-        self.episode_actions.append(self.action)
-        self.episode_rewards.append(self.reward)
-        self.episode_next_states.append(self.next_state)
-        self.episode_dones.append(self.done)
-
-    def run_n_episodes(self, num_episodes=None, show_whether_achieved_goal=True, save_and_print_results=True):
+    def run_n_episodes(self, num_episodes=None, show_whether_achieved_goal=True):
         """Runs game to completion n times and then summarises results and saves model (if asked to)"""
-        if num_episodes is None: num_episodes = self.config.num_episodes_to_run
+        if num_episodes is None:
+            num_episodes = self.config.num_episodes_to_run
         start = time.time()
         while self.episode_number < num_episodes:
             self.reset_game()
-            self.step()
-            if save_and_print_results:
-                self.save_and_print_result()
+            self.run_one_episode()
+            self.calculate_and_print_rewards()
         time_taken = time.time() - start
         if show_whether_achieved_goal:
             self.show_whether_achieved_goal()
@@ -220,28 +204,20 @@ class Base_Agent(object):
             self.locally_save_policy()
         return self.game_full_episode_scores, self.rolling_results, time_taken
 
-    def conduct_action(self, action):
-        """Conducts an action in the environment"""
+    def take_action(self, action):
+        """take an action in the environment"""
         self.next_state, self.reward, self.done, _ = self.environment.step(action)
         self.total_episode_score_so_far += self.reward
         if self.hyperparameters["clip_rewards"]:
             self.reward = max(min(self.reward, 1.0), -1.0)
 
-    def save_and_print_result(self):
-        """Saves and prints results of the game"""
-        self.save_result()
-        self.print_rolling_result()
-
-    def save_result(self):
-        """Saves the result of an episode of the game"""
+    def calculate_and_print_rewards(self):
+        # Calculate the results of this episode (rolling & max reward)
         self.game_full_episode_scores.append(self.total_episode_score_so_far)
         self.rolling_results.append(
             np.mean(self.game_full_episode_scores[-1 * self.rolling_score_window:])
         )
-        self.save_max_result_seen()
 
-    def save_max_result_seen(self):
-        """Updates the best episode result seen so far"""
         if self.game_full_episode_scores[-1] > self.max_episode_score_seen:
             self.max_episode_score_seen = self.game_full_episode_scores[-1]
 
@@ -249,18 +225,12 @@ class Base_Agent(object):
             if len(self.rolling_results) > self.rolling_score_window:
                 self.max_rolling_score_seen = self.rolling_results[-1]
 
-    def print_rolling_result(self):
-        """Prints out the latest episode results"""
-        text = """"\r Episode {0}, Score: {3: .2f}, Max score seen: {4: .2f}, Rolling score: {1: .2f}, Max rolling score seen: {2: .2f}"""
-        sys.stdout.write(
-            text.format(
-                len(self.game_full_episode_scores),
-                self.rolling_results[-1],
-                self.max_rolling_score_seen,
-                self.game_full_episode_scores[-1],
-                self.max_episode_score_seen
-            )
-        )
+        text = f"""\r Episode {len(self.game_full_episode_scores)}, """
+        text += f""" Score: {self.game_full_episode_scores[-1]:.2f}, """
+        text += f""" Max score seen: {self.max_episode_score_seen:.2f}, """
+        text += f""" Rolling score: {self.rolling_results[-1]:.2f}, """
+        text += f""" Max rolling score seen: {self.max_rolling_score_seen:.2f}"""
+        sys.stdout.write(text)
         sys.stdout.flush()
 
     def show_whether_achieved_goal(self):
@@ -301,10 +271,6 @@ class Base_Agent(object):
                 g['lr'] = new_lr
         if random.random() < 0.001:
             self.logger.info("Learning rate {}".format(new_lr))
-
-    def enough_experiences_to_learn_from(self):
-        """Boolean indicated whether there are enough experiences in the memory buffer to learn from"""
-        return len(self.memory) > self.hyperparameters["batch_size"]
 
     def save_experience(self, memory=None, experience=None):
         """Saves the recent experience to the memory buffer"""

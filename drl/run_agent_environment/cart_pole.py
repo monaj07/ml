@@ -49,4 +49,4 @@ if __name__ == "__main__":
         DQN
     ]
     trainer = Trainer(config, AGENTS)
-    trainer.run_games_for_agents()
+    trainer.run_games_for_all_agents()

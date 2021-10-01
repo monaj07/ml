@@ -13,15 +13,10 @@ class Trainer:
     def __init__(self, config, agents):
         self.config = config
         self.agents = agents
-        self.agent_to_agent_group = self.create_agent_to_agent_group_dictionary()
-        self.agent_to_color_group = self.create_agent_to_color_dictionary()
         self.results = None
         self.colors = ["red", "blue", "green", "orange", "yellow", "purple"]
         self.colour_ix = 0
-
-    def create_agent_to_agent_group_dictionary(self):
-        """Creates a dictionary that maps an agent to their wider agent group"""
-        agent_to_agent_group_dictionary = {
+        self.agent_to_agent_group = {
             "DQN": "DQN_Agents",
             "DQN-HER": "DQN_Agents",
             "DDQN": "DQN_Agents",
@@ -46,12 +41,7 @@ class Trainer:
             "DIAYN": "DIAYN",
             "Dueling DDQN": "DQN_Agents"
         }
-        return agent_to_agent_group_dictionary
-
-    def create_agent_to_color_dictionary(self):
-        """Creates a dictionary that maps an agent to a hex color (for plotting purposes)
-        See https://en.wikipedia.org/wiki/Web_colors and https://htmlcolorcodes.com/ for hex colors"""
-        agent_to_color_dictionary = {
+        self.agent_to_color_group = {
             "DQN": "#0000FF",
             "DQN with Fixed Q Targets": "#1F618D",
             "DDQN": "#2980B9",
@@ -70,11 +60,10 @@ class Trainer:
             "DIAYN": "#F322CD",
             "HRL": "#0E0F0F"
         }
-        return agent_to_color_dictionary
 
-    def run_games_for_agents(self):
+    def run_games_for_all_agents(self):
         """Run a set of games for each agent. Optionally visualising and/or saving the results"""
-        self.results = self.create_object_to_store_results()
+        self.results = dict()
         for agent_number, agent_class in enumerate(self.agents):
             agent_name = agent_class.agent_name
             self.run_games_for_agent(agent_number + 1, agent_class)
@@ -92,18 +81,6 @@ class Trainer:
         plt.show()
         return self.results
 
-    def create_object_to_store_results(self):
-        """Creates a dictionary that we will store the results in if it doesn't exist, otherwise it loads it up"""
-        if any(
-                [self.config.overwrite_existing_results_file,
-                 not self.config.file_to_save_data_results,
-                 not os.path.isfile(self.config.file_to_save_data_results)]
-        ):
-            results = {}
-        else:
-            results = self.load_obj(self.config.file_to_save_data_results)
-        return results
-
     def run_games_for_agent(self, agent_number, agent_class):
         """Runs a set of games for a given agent, saving the results in self.results"""
         agent_results = []
@@ -111,14 +88,6 @@ class Trainer:
         agent_round = 1
         for run in range(self.config.runs_per_agent):
             agent_config = copy.deepcopy(self.config)
-
-            if (self.environment_has_changeable_goals(agent_config.environment) and
-                    self.agent_cant_handle_changeable_goals_without_flattening(agent_name)):
-                print("Flattening changeable-goal environment for agent {}".format(agent_name))
-                agent_config.environment = gym.wrappers.FlattenDictWrapper(
-                    agent_config.environment,
-                    dict_keys=["observation", "desired_goal"]
-                )
 
             if self.config.randomise_random_seed:
                 agent_config.seed = random.randint(0, 2**32 - 2)
@@ -131,7 +100,7 @@ class Trainer:
             print("RANDOM SEED ", agent_config.seed)
             game_scores, rolling_scores, time_taken = agent.run_n_episodes()
             print("Time taken: {}".format(time_taken), flush=True)
-            self.print_two_empty_lines()
+            print('-'*80, '\n', '-'*80)
             agent_results.append(
                 [game_scores,
                  rolling_scores,
@@ -144,14 +113,6 @@ class Trainer:
                 plt.show()
             agent_round += 1
         self.results[agent_name] = agent_results
-
-    def environment_has_changeable_goals(self, env):
-        """Determines whether environment is such that for each episode there is a different goal or not"""
-        return isinstance(env.reset(), dict)
-
-    def agent_cant_handle_changeable_goals_without_flattening(self, agent_name):
-        """Boolean indicating whether the agent is set up to handle changeable goals"""
-        return "HER" not in agent_name
 
     def visualise_overall_agent_results(self, agent_results, agent_name, show_mean_and_std_range=False, show_each_run=False,
                                         color=None, ax=None, title=None, y_limits=None):
@@ -249,23 +210,11 @@ class Trainer:
         for spine in spines_to_hide:
             ax.spines[spine].set_visible(False)
 
-    def ignore_points_after_game_solved(self, mean_minus_x_std, mean_results, mean_plus_x_std):
-        """Removes the datapoints after the mean result achieves the score required to solve the game"""
-        for ix in range(len(mean_results)):
-            if mean_results[ix] >= self.config.environment.get_score_to_win():
-                break
-        return mean_minus_x_std[:ix], mean_results[:ix], mean_plus_x_std[:ix]
-
     def draw_horizontal_line_with_label(self, ax, y_value, x_min, x_max, label):
         """Draws a dotted horizontal line on the given image at the given point and with the given label"""
         ax.hlines(y=y_value, xmin=x_min, xmax=x_max,
                   linewidth=2, color='k', linestyles='dotted', alpha=0.5)
         ax.text(x_max, y_value * 0.965, label)
-
-    def print_two_empty_lines(self):
-        print("-----------------------------------------------------------------------------------")
-        print("-----------------------------------------------------------------------------------")
-        print(" ")
 
     def save_obj(self, obj, name):
         """Saves given object as a pickle file"""
@@ -274,54 +223,3 @@ class Trainer:
         os.makedirs(os.path.dirname(name), exist_ok=True)
         with open(name, 'wb') as f:
             pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
-
-    def load_obj(self, name):
-        """Loads a pickle file object"""
-        with open(name, 'rb') as f:
-            return pickle.load(f)
-
-    def visualise_preexisting_results(self, save_image_path=None, data_path=None, colors=None, show_image=True, ax=None,
-                                      title=None, y_limits=None):
-        """Visualises saved data results and then optionally saves the image"""
-        if not data_path:
-            preexisting_results = self.create_object_to_store_results()
-        else:
-            preexisting_results = self.load_obj(data_path)
-        for ix, agent in enumerate(list(preexisting_results.keys())):
-            agent_rolling_score_results = [results[1] for results in preexisting_results[agent]]
-            if colors:
-                color = colors[ix]
-            else:
-                color = None
-            self.visualise_overall_agent_results(agent_rolling_score_results, agent, show_mean_and_std_range=True,
-                                                 color=color, ax=ax, title=title, y_limits=y_limits)
-        if save_image_path:
-            plt.savefig(save_image_path, bbox_inches="tight")
-        if show_image:
-            plt.show()
-
-    def visualise_set_of_preexisting_results(self, results_data_paths, save_image_path=None, show_image=True, plot_titles=None,
-                                             y_limits=[None,None]):
-        """Visualises a set of preexisting results on 1 plot by making subplots"""
-        assert isinstance(results_data_paths, list), "all_results must be a list of data paths"
-
-        num_figures = len(results_data_paths)
-        col_width = 15
-        row_height = 6
-
-        if num_figures <= 2:
-            fig, axes = plt.subplots(1, num_figures, figsize=(col_width, row_height ))
-        elif num_figures <= 4:
-            fig, axes = plt.subplots(2, num_figures, figsize=(row_height, col_width))
-        else:
-            raise ValueError("Need to tell this method how to deal with more than 4 plots")
-        for ax_ix in range(len(results_data_paths)):
-            self.visualise_preexisting_results(show_image=False, data_path=results_data_paths[ax_ix], ax=axes[ax_ix],
-                                               title=plot_titles[ax_ix], y_limits=y_limits[ax_ix])
-        fig.tight_layout()
-        fig.subplots_adjust(bottom=0.25)
-
-        if save_image_path:
-            plt.savefig(save_image_path) #, bbox_inches="tight")
-        if show_image:
-            plt.show()

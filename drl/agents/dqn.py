@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from agents.base_agent import Base_Agent
-from exploration_strategies.epsilon_greedy_exploration import Epsilon_Greedy_Exploration
+from exploration_strategies.epsilon_greedy_exploration import EpsilonGreedyExploration
 from utilities.data_structures.replay_buffer import Replay_Buffer
 
 
@@ -33,7 +33,7 @@ class DQN(Base_Agent):
             lr=self.hyperparameters["learning_rate"],
             eps=1e-4
         )
-        self.exploration_strategy = Epsilon_Greedy_Exploration(config)
+        self.exploration_strategy = EpsilonGreedyExploration(config)
 
     def create_neural_net(self, input_dim, output_dim):
         """Creates a neural network for the agents to use"""
@@ -52,7 +52,7 @@ class DQN(Base_Agent):
                 output = self.layers(x)
                 return output
 
-        model = QNetwork(input_dim, output_dim)
+        model = QNetwork(input_dim, output_dim).to(self.device)
         return model
 
     def reset_game(self):
@@ -62,16 +62,21 @@ class DQN(Base_Agent):
             self.q_network_optimizer
         )
 
-    def step(self):
-        """Runs a step within a game including a learning step if required"""
+    def run_one_episode(self):
+        """Runs an episode within a game including learning steps if required"""
         while not self.done:
             self.action = self.pick_action()
-            self.conduct_action(self.action)
-            if self.time_for_q_network_to_learn():
+            self.take_action(self.action)
+            update_freq = (
+                    self.global_step_number % self.hyperparameters["update_every_n_steps"]
+            ) == 0
+            sufficient_replay_memory = (len(self.memory) > self.hyperparameters["batch_size"])
+            if update_freq and sufficient_replay_memory:
+                # Go through a learning iteration
                 for _ in range(self.hyperparameters["learning_iterations"]):
                     self.learn()
             self.save_experience()
-            self.state = self.next_state #this is to set the state for the next iteration
+            self.state = self.next_state  # this is to set the state for the next iteration
             self.global_step_number += 1
         self.episode_number += 1
 
@@ -92,7 +97,6 @@ class DQN(Base_Agent):
         self.q_network.train() #puts network back in training mode
         action = self.exploration_strategy.perturb_action_for_exploration_purposes(
             {"action_values": action_values,
-             "turn_off_exploration": self.turn_off_exploration,
              "episode_number": self.episode_number}
         )
         self.logger.info("Q values {} -- Action chosen {}".format(action_values, action))
@@ -150,15 +154,6 @@ class DQN(Base_Agent):
     def locally_save_policy(self):
         """Saves the policy"""
         torch.save(self.q_network.state_dict(), "Models/{}_network.pt".format(self.agent_name))
-
-    def time_for_q_network_to_learn(self):
-        """Returns boolean indicating whether enough steps have been taken for learning to begin and there are
-        enough experiences in the replay buffer to learn from"""
-        return self.right_amount_of_steps_taken() and self.enough_experiences_to_learn_from()
-
-    def right_amount_of_steps_taken(self):
-        """Returns boolean indicating whether enough steps have been taken for learning to begin"""
-        return self.global_step_number % self.hyperparameters["update_every_n_steps"] == 0
 
     def sample_experiences(self):
         """Draws a random sample of experience from the memory buffer"""
