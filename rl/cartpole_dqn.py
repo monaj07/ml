@@ -21,6 +21,7 @@ import numpy as np
 import os
 from PIL import Image
 import random
+import sys
 
 import torch
 import torch.nn as nn
@@ -29,19 +30,16 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 
 
-def plot_durations(episode_durations):
-    plt.figure(2)
-    plt.clf()
+def plot_durations(episode_durations, rolling_reward):
+    # plt.figure(2)
+    # plt.clf()
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
     plt.title('Training...')
     plt.xlabel('Episode')
     plt.ylabel('Duration')
     plt.plot(durations_t.numpy(), label='Single episode reward')
     # Take 100 episode averages and plot them too
-    if len(durations_t) >= 100:
-        means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(99), means))
-        plt.plot(means.numpy(), label='Average reward in the last 100 episodes')
+    plt.plot(rolling_reward, label='Average reward in the last 100 episodes')
     plt.legend()
     plt.pause(0.001)  # pause a bit so that plots are updated
 
@@ -123,7 +121,7 @@ class DQLearning:
         learning_rate = 0.001
 
         # Experience Replay Memory
-        self.memory_size = 10000
+        self.memory_size = 40000
         self.replay_memory = deque([], maxlen=self.memory_size)
 
         # Define the environment
@@ -253,8 +251,9 @@ class DQLearning:
             level=logging.INFO
         )
         episode_total_rewards = []
-        max_reward_so_far = 0
-        max_reward_so_far_episode = 0
+        rolling_results = []
+        max_reward_so_far = np.iinfo(np.int16).min
+        max_rolling_score_seen = np.iinfo(np.int16).min
         for episode in range(self.total_episodes):
             self.env.reset()
 
@@ -339,11 +338,16 @@ class DQLearning:
 
             episode_total_rewards.append(sum(episode_rewards))
 
-            if sum(episode_rewards) > max_reward_so_far:
-                max_reward_so_far = sum(episode_rewards)
-                max_reward_so_far_episode = episode
+            rolling_window = min([100, len(episode_total_rewards)])
+            rolling_results.append(np.mean(episode_total_rewards[-rolling_window:]))
+
+            if episode_total_rewards[-1] > max_reward_so_far:
+                max_reward_so_far = episode_total_rewards[-1]
                 # Save a snapshot of the best model so far
                 self.save_snapshot(episode, int(max_reward_so_far))
+
+            if rolling_results[-1] > max_rolling_score_seen:
+                max_rolling_score_seen = rolling_results[-1]
 
             if (episode % self.save_model_frequency) == 0:
                 # Save a snapshot at every "save_model_frequency" episode
@@ -352,43 +356,18 @@ class DQLearning:
             if (episode % self.target_network_update) == 0:
                 # Update the target network with the latest policy network parameters
                 self.target_net.load_state_dict(self.policy_net.state_dict())
-                plot_durations(episode_total_rewards)
-                print(f'episode: {episode},\t'
-                      f'epsilon: {round(self.current_epsilon, 3)},\t'
-                      f'max reward so far: {max_reward_so_far} in episode {max_reward_so_far_episode}')
-                logging.info(f'episode: {episode},\t'
-                             f'epsilon: {round(self.current_epsilon, 3)},\t'
-                             f'max reward so far: {max_reward_so_far} in episode {max_reward_so_far_episode}')
+                plot_durations(episode_total_rewards, rolling_results)
 
-    def test(self, model_filename, num_test_episodes=10):
-        state_dict = torch.load(model_filename)['state_dict']
-        self.policy_net.load_state_dict(state_dict)
-        # self.policy_net.eval()
-        self.policy_net.to(self.device)
-        all_episodes_rewards = []
-        for episode in range(num_test_episodes):
-            self.env.reset()
-            finished = False
-            episode_rewards = []
-            # Create the first state of the episode
-            prev_screen = self.get_screen()
-            curr_screen = self.get_screen()
-            state_1 = curr_screen - prev_screen
-
-            while not finished:
-                # select action and take that action in the environment
-                action_1 = self.select_action(state_1, greedy=True)
-                _, reward_1, finished, _ = self.env.step(action_1)
-                episode_rewards.append(reward_1)
-                # observe the next frame and create the next state
-                if not finished:
-                    prev_screen = copy.deepcopy(curr_screen)
-                    curr_screen = self.get_screen()
-                    state_1 = curr_screen - prev_screen
-                else:
-                    break
-            all_episodes_rewards.append(sum(episode_rewards))
-        print(f'all_episodes_rewards: {all_episodes_rewards}')
+            text = f"""\r Episode {episode}, """
+            text += f""" Score: {episode_total_rewards[-1]:.2f}, """
+            text += f""" Max score seen: {max_reward_so_far:.2f}, """
+            text += f""" Epsilon: {round(self.current_epsilon, 3):.2f}"""
+            if episode >= 100:
+                text += f""" Rolling score: {rolling_results[-1]:.2f}, """
+                text += f""" Max rolling score seen: {max_rolling_score_seen:.2f}"""
+            logging.info(text)
+            sys.stdout.write(text)
+            sys.stdout.flush()
 
 
 if __name__ == "__main__":
