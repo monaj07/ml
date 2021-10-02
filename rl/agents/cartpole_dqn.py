@@ -19,15 +19,18 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+from os.path import dirname, abspath
 from PIL import Image
 import random
 import sys
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as T
+
+sys.path.append(dirname(dirname(abspath(__file__))))
+from networks.networks import DQN
 
 
 def plot_durations(episode_durations, rolling_reward):
@@ -42,46 +45,6 @@ def plot_durations(episode_durations, rolling_reward):
     plt.plot(rolling_reward, label='Average reward in the last 100 episodes')
     plt.legend()
     plt.pause(0.001)  # pause a bit so that plots are updated
-
-
-class DQN(nn.Module):
-    def __init__(self, h, w, outputs, dueling_dqn=False):
-        super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(32)
-        self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
-        self.bn3 = nn.BatchNorm2d(32)
-        self.dueling_dqn = dueling_dqn
-
-        # Number of Linear input connections depends on output of conv2d layers
-        # and therefore the input image size, so compute it.
-        def conv2d_size_out(size, kernel_size=5, stride=2):
-            return (size - (kernel_size - 1) - 1) // stride + 1
-        convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
-        convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
-        linear_input_size = convw * convh * 32
-        if self.dueling_dqn:
-            self.value_stream = nn.Linear(linear_input_size, 1)
-            self.advantage_stream = nn.Linear(linear_input_size, outputs)
-        else:
-            self.head = nn.Linear(linear_input_size, outputs)
-
-    # Called with either one element to determine next action, or a batch
-    # during optimization.
-    def forward(self, x):
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
-        if self.dueling_dqn:
-            value_stream = self.value_stream(x.view(x.size(0), -1))
-            advantage_stream = self.advantage_stream(x.view(x.size(0), -1))
-            advantage_stream -= advantage_stream.mean(dim=-1, keepdims=True)
-            q_values = value_stream + advantage_stream
-        else:
-            q_values = self.head(x.view(x.size(0), -1))
-        return q_values
 
 
 class DQLearning:
@@ -255,14 +218,15 @@ class DQLearning:
                 'state_dict': self.policy_net.state_dict(),
                 'optimizer': self.optimizer.state_dict()
             }
-            os.makedirs('dqn_models', exist_ok=True)
-            torch.save(state, os.path.join('dqn_models', f'snapshot_episode_{episode}_reward_{reward}.pth'))
+            os.makedirs('../dqn_models', exist_ok=True)
+            torch.save(state, os.path.join('../dqn_models', f'snapshot_episode_{episode}_reward_{reward}.pth'))
         except Exception as e:
             print(f"Unable to save the model because:\n {e}")
 
     def train(self):
+        os.makedirs('../logs', exist_ok=True)
         logging.basicConfig(
-            filename=f"{datetime.now().strftime('%Y-%m-%d--%H-%M')}.log",
+            filename=f"../logs/{datetime.now().strftime('%Y-%m-%d--%H-%M')}.log",
             format='%(message)s',
             level=logging.INFO
         )
@@ -360,7 +324,7 @@ class DQLearning:
             if episode_total_rewards[-1] > max_reward_so_far:
                 max_reward_so_far = episode_total_rewards[-1]
                 # Save a snapshot of the best model so far
-                self.save_snapshot(episode, int(max_reward_so_far))
+                # self.save_snapshot(episode, int(max_reward_so_far))
 
             if rolling_results[-1] > max_rolling_score_seen:
                 max_rolling_score_seen = rolling_results[-1]
@@ -372,6 +336,8 @@ class DQLearning:
             if (episode % self.target_network_update) == 0:
                 # Update the target network with the latest policy network parameters
                 self.target_net.load_state_dict(self.policy_net.state_dict())
+
+            if (episode % 100) == 0:
                 plot_durations(episode_total_rewards, rolling_results)
 
             text = f"""\r Episode {episode}, """
@@ -388,5 +354,5 @@ class DQLearning:
 
 if __name__ == "__main__":
     seed = 1364
-    dqlearner = DQLearning(double_dqn=True, dueling_dqn=False, seed=seed)
+    dqlearner = DQLearning(double_dqn=True, dueling_dqn=True, seed=seed)
     dqlearner.train()
