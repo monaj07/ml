@@ -211,9 +211,11 @@ class DQLearning:
         # -------------------------------------
         # Full-Greedy strategy (used at the test time)
         if greedy:
+            self.policy_net.eval()
             with torch.no_grad():
                 # take the greedy action
                 action = self.policy_net(state.to(self.device)).max(-1)[1].item()
+            self.policy_net.train()
             return action
         # -------------------------------------
         # Epsilon-greedy strategy (mostly used in training time)
