@@ -103,13 +103,13 @@ class DQLearning:
     Cartpole doesn’t have a particularly complex state space,
     so it’s likely that all states are useful for learning throughout an agents lifetime.
     """
-    def __init__(self, double_dqn=False, dueling_dqn=False):
+    def __init__(self, double_dqn=False, dueling_dqn=False, seed=1364):
 
         # Epsilon parameters
         self.current_epsilon = 0.9
         self.epsilon_start = 0.9
         self.epsilon_end = 0.05
-        self.epsilon_decay = 0.0005
+        self.epsilon_decay = 0.0001
 
         # Training parameters
         self.gamma = 0.99
@@ -126,6 +126,20 @@ class DQLearning:
 
         # Define the environment
         self.env = gym.make('CartPole-v0').unwrapped
+
+        # ----------------------------------------
+        # Make the algorithm outputs reproducible
+        self.env.seed(seed)
+        self.env.action_space.seed(seed)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        # ----------------------------------------
+
         self.env.reset()
 
         # Get number of actions from gym action space
@@ -373,6 +387,6 @@ class DQLearning:
 
 
 if __name__ == "__main__":
-    dqlearner = DQLearning(double_dqn=False, dueling_dqn=False)
+    seed = 1364
+    dqlearner = DQLearning(double_dqn=True, dueling_dqn=False, seed=seed)
     dqlearner.train()
-    # dqlearner.test('dqn_models/snapshot_episode_149_reward_143.0.pth', num_test_episodes=10)
