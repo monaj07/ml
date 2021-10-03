@@ -30,7 +30,7 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 
 sys.path.append(dirname(dirname(abspath(__file__))))
-from networks.networks import DQN
+from networks.network_builder import CreateNet
 
 
 def make_deterministic(env, internal_seed):
@@ -46,6 +46,7 @@ def make_deterministic(env, internal_seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     # ----------------------------------------
+
 
 def plot_durations(episode_durations, rolling_reward):
     # plt.figure(2)
@@ -80,7 +81,7 @@ class DQLearning:
     Cartpole doesn’t have a particularly complex state space,
     so it’s likely that all states are useful for learning throughout an agents lifetime.
     """
-    def __init__(self, double_dqn=False, dueling_dqn=False, seed=1364):
+    def __init__(self, double_dqn=False, seed=1364):
 
         # Epsilon parameters
         self.current_epsilon = 0.9
@@ -126,15 +127,19 @@ class DQLearning:
 
         # Alternative DQN training
         self.double_dqn = double_dqn
-        self.dueling_dqn = dueling_dqn
 
         # Q-network instantiation
-        self.policy_net = DQN(screen_height, screen_width,
-                              self.num_actions,
-                              dueling_dqn=self.dueling_dqn).to(self.device)
-        self.target_net = DQN(screen_height, screen_width,
-                              self.num_actions,
-                              dueling_dqn=self.dueling_dqn).to(self.device)
+        # (Explanation of the network_params in networks/network_builder.py)
+        network_params = {
+            'input_dim': (screen_height, screen_width),
+            'conv_layers': [(3, 16, 5, 2), (16, 32, 5, 2), (32, 32, 5, 2)],
+            'dense_layers': [self.num_actions],
+            'conv_bn': True,
+            'activation': 'relu'
+        }
+        self.policy_net = CreateNet(network_params).to(self.device)
+        self.target_net = CreateNet(network_params).to(self.device)
+
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
         self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=learning_rate)
@@ -280,6 +285,7 @@ class DQLearning:
         return q_state_1_target
 
     def optimise(self, q_a_state_1, q_state_1_target):
+        # Optimise the network parameters based on TD loss (q_expected, q_target)
         self.optimizer.zero_grad()
         loss = F.smooth_l1_loss(q_a_state_1, q_state_1_target.view(-1, 1))
         loss.backward()
@@ -287,6 +293,7 @@ class DQLearning:
         return loss
 
     def learning_step(self, minibatch):
+        # Compute loss over the minibatch and optimise the network parameters
         minibatch_state_1 = minibatch[0]
         minibatch_action_1 = minibatch[1]
         minibatch_reward_1 = minibatch[2]
@@ -328,9 +335,15 @@ class DQLearning:
             action_1 = self.select_action(state_1)
             _, reward_1, finished, _ = self.env.step(action_1)
 
-            # observe the next frame and create the next state
+            # After taking a step in the environment, the game frame is updated;
+            # so we put the content of the current screen into the prev_screen,
+            # and then (if game is not finished),
+            # update the value of current screen with a new get_screen() call.
+            prev_screen = curr_screen.clone()
             if not finished:
-                prev_screen = copy.deepcopy(curr_screen)
+                # Observe the next frame and create the next state.
+                # (In order to capture the dynamic of this environment,
+                # we form our state by computing the difference between two frames)
                 curr_screen = self.get_screen()
                 state_2 = curr_screen - prev_screen
             else:
@@ -339,6 +352,7 @@ class DQLearning:
                 # (because state_1 was the last state of the episode)
                 state_2 = 0 * state_1
 
+            # Add the current transition (s, a, r, s', done) to the replay memory
             self.add_experience_to_replay_memory(
                 state_1,
                 action_1,
@@ -347,20 +361,27 @@ class DQLearning:
                 finished
             )
 
-            # Policy Network optimision:
+            # Policy Network optimisation:
+            # ----------------------------
             # If there are enough sample transitions inside the replay_memory,
             # then we can start training our policy network using them;
             # Otherwise we move on to the next state of the episode.
             if len(self.replay_memory) >= self.batch_size:
+                # Take a random sample minibatch from the replay memory
                 minibatch = self.sample_from_replay_memory(self.batch_size)
+                # Compute the TD loss over the minibatch
                 loss = self.learning_step(minibatch)
+                # Track the value of loss (for debugging purpose)
                 episode_losses.append(loss.item())
 
             # Go to the next step of the episode
             state_1 = state_2
+            # Add up the rewards collected during this episode
             episode_rewards.append(reward_1)
+            # One single training iteration is passed
             self.total_steps_so_far += 1
 
+        # Return the total rewards collected within this single episode run
         return episode_rewards
 
     def train(self):
@@ -374,20 +395,27 @@ class DQLearning:
         rolling_results = []
         max_reward_so_far = np.iinfo(np.int16).min
         max_rolling_score_seen = np.iinfo(np.int16).min
+
+        # Run the game for total_episodes number
         for episode in range(self.total_episodes):
+            # At the beginning of each episode, reset the environment
             self.env.reset()
 
+            # Do a complete single episode run
             episode_rewards = self.run_single_episode()
 
+            # Append the total rewards collected in the above finished episode
             episode_total_rewards.append(sum(episode_rewards))
 
+            # Compute the rolling average reward (over the last 100 episodes)
             rolling_window = min([100, len(episode_total_rewards)])
             rolling_results.append(np.mean(episode_total_rewards[-rolling_window:]))
 
             if episode_total_rewards[-1] > max_reward_so_far:
                 max_reward_so_far = episode_total_rewards[-1]
-                # Save a snapshot of the best model so far
-                # self.save_snapshot(episode, int(max_reward_so_far))
+                if len(episode_total_rewards) > self.save_model_frequency:
+                    # Save a snapshot of the best model so far
+                    self.save_snapshot(episode, int(max_reward_so_far))
 
             if rolling_results[-1] > max_rolling_score_seen:
                 max_rolling_score_seen = rolling_results[-1]
@@ -417,5 +445,5 @@ class DQLearning:
 
 if __name__ == "__main__":
     seed = 1364
-    dqlearner = DQLearning(double_dqn=True, dueling_dqn=True, seed=seed)
+    dqlearner = DQLearning(double_dqn=False, seed=seed)
     dqlearner.train()
