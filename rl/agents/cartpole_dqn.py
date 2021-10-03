@@ -195,18 +195,8 @@ class DQLearning:
         final_torch_screen = resize(screen).unsqueeze(0)
         return final_torch_screen
 
-    def select_action(self, state, greedy=False):
-        # -------------------------------------
-        # Full-Greedy strategy (used at the test time)
-        if greedy:
-            self.policy_net.eval()
-            with torch.no_grad():
-                # take the greedy action
-                action = self.policy_net(state.to(self.device)).max(-1)[1].item()
-            self.policy_net.train()
-            return action
-        # -------------------------------------
-        # Epsilon-greedy strategy (mostly used in training time)
+    def explore_action(self, num_actions):
+        # Epsilon-greedy strategy
         self.current_epsilon = self.epsilon_end + (
                 (self.epsilon_start - self.epsilon_end) *
                 math.exp(-self.epsilon_decay * self.total_steps_so_far)
@@ -214,13 +204,10 @@ class DQLearning:
         z = random.uniform(0, 1)
         if z < self.current_epsilon:
             # Take a random action
-            action = random.choice(range(self.num_actions))
+            return random.choice(range(num_actions))
         else:
-            with torch.no_grad():
-                # take the greedy action
-                action = self.policy_net(state.to(self.device)).max(-1)[1].item()
-        return action
-        # -------------------------------------
+            # Let the output know to take the policy action
+            return -1
 
     def save_snapshot(self, episode, reward):
         try:
@@ -331,8 +318,13 @@ class DQLearning:
         state_1 = curr_screen - prev_screen
 
         while not finished:
-            # select action and take that action in the environment
-            action_1 = self.select_action(state_1)
+            # select action (epsilon-greedy strategy)
+            action_1 = self.explore_action(self.num_actions)
+            if action_1 == -1:
+                # Find the greedy action
+                with torch.no_grad():
+                    action_1 = self.policy_net(state_1.to(self.device)).max(-1)[1].item()
+            # Take the selected action in the environment
             _, reward_1, finished, _ = self.env.step(action_1)
 
             # After taking a step in the environment, the game frame is updated;
