@@ -12,5 +12,6 @@ __pyca*
 /nlp/sentiment_analysis/.data/
 *.ini
 *.log
+*.png
 *.pth
 /drl/run_agent_environment/results/
