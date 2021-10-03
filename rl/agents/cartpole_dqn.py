@@ -33,6 +33,20 @@ sys.path.append(dirname(dirname(abspath(__file__))))
 from networks.networks import DQN
 
 
+def make_deterministic(env, internal_seed):
+    # ----------------------------------------
+    # Make the algorithm outputs reproducible
+    env.seed(internal_seed)
+    env.action_space.seed(internal_seed)
+    torch.manual_seed(internal_seed)
+    np.random.seed(internal_seed)
+    random.seed(internal_seed)
+    torch.cuda.manual_seed_all(internal_seed)
+    torch.cuda.manual_seed(internal_seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # ----------------------------------------
+
 def plot_durations(episode_durations, rolling_reward):
     # plt.figure(2)
     # plt.clf()
@@ -92,15 +106,7 @@ class DQLearning:
 
         # ----------------------------------------
         # Make the algorithm outputs reproducible
-        self.env.seed(seed)
-        self.env.action_space.seed(seed)
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.cuda.manual_seed(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+        make_deterministic(self.env, seed)
         # ----------------------------------------
 
         self.env.reset()
@@ -223,6 +229,140 @@ class DQLearning:
         except Exception as e:
             print(f"Unable to save the model because:\n {e}")
 
+    def sample_from_replay_memory(self, batch_size=None):
+        sample_size = self.batch_size if batch_size is None else self.batch_size
+        minibatch_indices = np.random.choice(len(self.replay_memory), sample_size, replace=False)
+        minibatch_state_1 = torch.cat([self.replay_memory[idx][0] for idx in minibatch_indices])
+        minibatch_action_1 = torch.cat([self.replay_memory[idx][1] for idx in minibatch_indices])
+        minibatch_reward_1 = torch.cat([self.replay_memory[idx][2] for idx in minibatch_indices])
+        minibatch_state_2 = torch.cat([self.replay_memory[idx][3] for idx in minibatch_indices])
+        minibatch_finished = torch.cat([self.replay_memory[idx][4] for idx in minibatch_indices])
+        return minibatch_state_1, minibatch_action_1, minibatch_reward_1, minibatch_state_2, minibatch_finished
+
+    def add_experience_to_replay_memory(self, *experience):
+        state_1 = experience[0]
+        action_1 = experience[1]
+        reward_1 = experience[2]
+        state_2 = experience[3]
+        finished = experience[4]
+        action_1 = torch.tensor(action_1, dtype=torch.float32).unsqueeze(0)
+        reward_1 = torch.tensor(reward_1, dtype=torch.float32).unsqueeze(0)
+        finished = torch.tensor(finished, dtype=torch.float32).unsqueeze(0)
+        # Pack the transition and add it to the replay memory
+        transition = (state_1, action_1, reward_1, state_2, finished)
+        self.replay_memory.append(transition)
+
+    def compute_expected_q_s1_a1(self, minibatch_state_1, minibatch_action_1):
+        # Note: Remember that you should compute Q(s1, a1)
+        # (for actions that you have taken in minibatch_actions_1,
+        # not for all actions, that is why we need to call "gather" method here
+        # to get the value only for those actions)
+        q_a_state_1 = self.policy_net(minibatch_state_1.to(self.device)).gather(
+            1, minibatch_action_1.to(torch.int64).unsqueeze(1).to(self.device)
+        )
+        return q_a_state_1
+
+    def compute_target_q_state_1(self, minibatch_reward_1, minibatch_state_2, minibatch_finished):
+        # Calculate the target rewards: R = r + gamma * max_a2{Q'(s2, a2; theta)}, OR R = r
+        # Depending on whether we are in terminal state or not
+        # Note that for double-dqn, it would be r + gamma * Q'(s2, argmax{Q(s2, a2)})
+        with torch.no_grad():
+            if self.double_dqn:
+                action_2_max = self.policy_net(minibatch_state_2.to(self.device)).max(-1)[1].detach()
+                q_state_2_max = self.target_net(minibatch_state_2.to(self.device)).gather(
+                    1, action_2_max.unsqueeze(1)
+                ).squeeze(1)
+            else:
+                q_state_2_max = self.target_net(minibatch_state_2.to(self.device)).max(-1)[0].detach()
+        q_state_1_target = minibatch_reward_1.to(self.device) + self.gamma * (
+                (1 - minibatch_finished).to(self.device) * q_state_2_max
+        )
+        return q_state_1_target
+
+    def optimise(self, q_a_state_1, q_state_1_target):
+        self.optimizer.zero_grad()
+        loss = F.smooth_l1_loss(q_a_state_1, q_state_1_target.view(-1, 1))
+        loss.backward()
+        self.optimizer.step()
+        return loss
+
+    def learning_step(self, minibatch):
+        minibatch_state_1 = minibatch[0]
+        minibatch_action_1 = minibatch[1]
+        minibatch_reward_1 = minibatch[2]
+        minibatch_state_2 = minibatch[3]
+        minibatch_finished = minibatch[4]
+
+        # Compute Q(s1, a1)
+        q_a_state_1 = self.compute_expected_q_s1_a1(
+            minibatch_state_1,
+            minibatch_action_1
+        )
+
+        # Compute Q_target(s1, a1)
+        q_state_1_target = self.compute_target_q_state_1(
+            minibatch_reward_1,
+            minibatch_state_2,
+            minibatch_finished
+        )
+
+        # Optimisation:
+        loss = self.optimise(q_a_state_1, q_state_1_target)
+        return loss
+
+    def run_single_episode(self):
+        # Make each episode deterministic based on the total_iteration_number
+        make_deterministic(self.env, self.total_steps_so_far)
+
+        finished = False
+        episode_rewards = []
+        episode_losses = []
+
+        # Create the first state of the episode
+        prev_screen = self.get_screen()
+        curr_screen = self.get_screen()
+        state_1 = curr_screen - prev_screen
+
+        while not finished:
+            # select action and take that action in the environment
+            action_1 = self.select_action(state_1)
+            _, reward_1, finished, _ = self.env.step(action_1)
+
+            # observe the next frame and create the next state
+            if not finished:
+                prev_screen = copy.deepcopy(curr_screen)
+                curr_screen = self.get_screen()
+                state_2 = curr_screen - prev_screen
+            else:
+                # when episode is finished, state_2 does not matter,
+                # and won't contribute to the optimisation
+                # (because state_1 was the last state of the episode)
+                state_2 = 0 * state_1
+
+            self.add_experience_to_replay_memory(
+                state_1,
+                action_1,
+                reward_1,
+                state_2,
+                finished
+            )
+
+            # Policy Network optimision:
+            # If there are enough sample transitions inside the replay_memory,
+            # then we can start training our policy network using them;
+            # Otherwise we move on to the next state of the episode.
+            if len(self.replay_memory) >= self.batch_size:
+                minibatch = self.sample_from_replay_memory(self.batch_size)
+                loss = self.learning_step(minibatch)
+                episode_losses.append(loss.item())
+
+            # Go to the next step of the episode
+            state_1 = state_2
+            episode_rewards.append(reward_1)
+            self.total_steps_so_far += 1
+
+        return episode_rewards
+
     def train(self):
         os.makedirs('../logs', exist_ok=True)
         logging.basicConfig(
@@ -237,84 +377,7 @@ class DQLearning:
         for episode in range(self.total_episodes):
             self.env.reset()
 
-            finished = False
-            episode_rewards = []
-            episode_losses = []
-
-            # Create the first state of the episode
-            prev_screen = self.get_screen()
-            curr_screen = self.get_screen()
-            state_1 = curr_screen - prev_screen
-
-            while not finished:
-                # select action and take that action in the environment
-                action_1 = self.select_action(state_1)
-                _, reward_1, finished, _ = self.env.step(action_1)
-                episode_rewards.append(reward_1)
-
-                # observe the next frame and create the next state
-                if not finished:
-                    prev_screen = copy.deepcopy(curr_screen)
-                    curr_screen = self.get_screen()
-                    state_2 = curr_screen - prev_screen
-                else:
-                    # state_2 does not matter, since it won't contribute to the optimisation
-                    # (it is the last state of the episode)
-                    state_2 = 0 * state_1
-
-                reward_1 = torch.tensor(reward_1, dtype=torch.float32).unsqueeze(0)
-                action_1 = torch.tensor(action_1, dtype=torch.float32).unsqueeze(0)
-                finished = torch.tensor(finished, dtype=torch.float32).unsqueeze(0)
-                # Pack the transition and add it to the replay memory
-                transition = (state_1, action_1, reward_1, state_2, finished)
-                self.replay_memory.append(transition)
-
-                # Go to the next step of the episode
-                state_1 = state_2
-
-                # Policy Network optimision:
-                # If there are enough sample transitions inside the replay_memory,
-                # then we can start training our policy network using them;
-                # Otherwise we move on to the next state of the episode.
-                if len(self.replay_memory) >= self.batch_size:
-                    minibatch_indices = np.random.choice(len(self.replay_memory), self.batch_size, replace=False)
-                    minibatch_state_1 = torch.cat([self.replay_memory[idx][0] for idx in minibatch_indices])
-                    minibatch_action_1 = torch.cat([self.replay_memory[idx][1] for idx in minibatch_indices])
-                    minibatch_reward_1 = torch.cat([self.replay_memory[idx][2] for idx in minibatch_indices])
-                    minibatch_state_2 = torch.cat([self.replay_memory[idx][3] for idx in minibatch_indices])
-                    minibatch_finished = torch.cat([self.replay_memory[idx][4] for idx in minibatch_indices])
-
-                    # Compute Q(s1, a1)
-                    # Note: Remember that you should compute Q(s, a)
-                    # (for actions that you have taken in minibatch_actions_1,
-                    # not for all actions, that is why we need to call "gather" method here
-                    # to get the value only for those actions)
-                    q_a_state_1 = self.policy_net(minibatch_state_1.to(self.device)).gather(
-                        1, minibatch_action_1.to(torch.int64).unsqueeze(1).to(self.device)
-                    )
-
-                    # Calculate the target rewards: R = r + gamma * max_a2{Q'(s2, a2; theta)}, OR R = r
-                    # Depending on whether we are in terminal state or not
-                    # Note that for double-dqn, it would be r + gamma * Q'(s2, argmax{Q(s2, a2)})
-                    with torch.no_grad():
-                        if self.double_dqn:
-                            action_2_max = self.policy_net(minibatch_state_2.to(self.device)).max(-1)[1].detach()
-                            q_state_2_max = self.target_net(minibatch_state_2.to(self.device)).gather(
-                                1, action_2_max.unsqueeze(1)
-                            ).squeeze(1)
-                        else:
-                            q_state_2_max = self.target_net(minibatch_state_2.to(self.device)).max(-1)[0].detach()
-                    q_state_1_target = minibatch_reward_1.to(self.device) + self.gamma * (
-                        (1 - minibatch_finished).to(self.device) * q_state_2_max
-                    )
-
-                    # Optimisation:
-                    self.optimizer.zero_grad()
-                    loss = F.smooth_l1_loss(q_a_state_1, q_state_1_target.view(-1, 1))
-                    episode_losses.append(loss.item())
-                    loss.backward()
-                    self.optimizer.step()
-                    self.total_steps_so_far += 1
+            episode_rewards = self.run_single_episode()
 
             episode_total_rewards.append(sum(episode_rewards))
 
