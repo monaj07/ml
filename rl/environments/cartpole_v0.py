@@ -169,6 +169,92 @@ class CartPoleV0:
         return episode_rewards
 
 
+class CartPoleV0Simple4D:
+    """
+    This class instantiate the environment with simple 4d state space.
+    """
+    def __init__(self, seed=1364):
+
+        # Define the environment
+        self.env = gym.make('CartPole-v0').unwrapped
+        # ----------------------------------------
+        # Make the algorithm outputs reproducible
+        make_deterministic(seed, self.env)
+        # ----------------------------------------
+        self.env.reset()
+
+        # Get number of actions from gym action space
+        self.num_actions = self.env.action_space.n
+        # Get the space size
+        self.input_dim = self.env.state.size
+        self.average_score_required_to_win = 200
+
+    def run_single_episode(self, agent, explorer):
+        # Make each episode deterministic based on the total_iteration_number
+        make_deterministic(agent.total_steps_so_far, self.env)
+
+        finished = False
+        episode_rewards = []
+        episode_losses = []
+
+        # Create the first state of the episode
+        state_1 = self.env.state
+        state_1 = torch.from_numpy(state_1).unsqueeze(0).float()
+
+        while not finished:
+            # select action (epsilon-greedy strategy)
+            action_1 = explorer(self.num_actions, agent.total_steps_so_far)
+            if action_1 == -1:
+                agent.policy_net.eval()
+                # Find the greedy action
+                with torch.no_grad():
+                    action_1 = agent.policy_net(state_1.to(agent.device)).max(-1)[1].item()
+                agent.policy_net.train()
+            # Take the selected action in the environment
+            state_2, reward_1, finished, _ = self.env.step(action_1)
+            state_2 = torch.from_numpy(state_2).unsqueeze(0).float()
+
+            if finished:
+                state_2 = 0 * state_1
+
+            # Add the current transition (s, a, r, s', done) to the replay memory
+            agent.add_experience_to_replay_memory(
+                state_1,
+                action_1,
+                reward_1,
+                state_2,
+                finished
+            )
+
+            # Policy Network optimisation:
+            # ----------------------------
+            # If there are enough sample transitions inside the replay_memory,
+            # then we can start training our policy network using them;
+            # Otherwise we move on to the next state of the episode.
+            if len(agent.replay_memory) >= agent.batch_size:
+                # Take a random sample minibatch from the replay memory
+                minibatch = agent.sample_from_replay_memory(agent.batch_size)
+                # Compute the TD loss over the minibatch
+                loss = agent.learning_step(minibatch)
+                # Track the value of loss (for debugging purpose)
+                episode_losses.append(loss.item())
+
+            # Go to the next step of the episode
+            state_1 = state_2
+            # Add up the rewards collected during this episode
+            episode_rewards.append(reward_1)
+            # One single training iteration is passed
+            agent.total_steps_so_far += 1
+
+            # If the agent has received a satisfactory episode reward, stop it.
+            if sum(episode_rewards) >= self.average_score_required_to_win:
+                finished = True
+
+        # Return the total rewards collected within this single episode run
+        return episode_rewards
+
+
 if __name__ == "__main__":
     seed = 1364
     cartpole_v0 = CartPoleV0(seed=seed)
+    cartpole_v0_simple_4d = CartPoleV0Simple4D(seed=seed)
