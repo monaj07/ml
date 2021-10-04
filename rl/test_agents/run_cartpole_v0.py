@@ -97,14 +97,21 @@ if __name__ == "__main__":
     reward_curve_display_frequency = 100
     save_model_frequency = 100
 
-    # Instantiate RL objects
-    explorer = ActionExplorer(seed)
-    cartpole_env = CartPoleV0(seed=seed)
-    agent = DQN(cartpole_env.input_dim, cartpole_env.num_actions, double_dqn=False, seed=seed)
+    learning_rate = 0.001
+    epsilon_decay = 0.0001
+    gradient_clipping_norm = 0.7
 
+    # Instantiate RL objects
+    explorer = ActionExplorer(epsilon_decay=epsilon_decay, seed=seed)
+    env = CartPoleV0(seed=seed)
+    agent = DQN(env.input_dim, env.num_actions,
+                gradient_clipping_norm=gradient_clipping_norm,
+                learning_rate=learning_rate,
+                double_dqn=True,
+                seed=seed)
     # Run training
     train(
-        cartpole_env,
+        env,
         agent,
         explorer,
         total_episodes=total_episodes,
