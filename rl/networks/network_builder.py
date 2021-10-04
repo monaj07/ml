@@ -98,6 +98,8 @@ class CreateNet(nn.Module):
                     network_layers.append(activation_functions[activation])
                     if dense_dropout_p > 0:
                         network_layers.append(nn.Dropout(dense_dropout_p))
+                # The input to the next layer is the output of this layer
+                dense_input_shape = dense_layer_size
         else:
             raise NotImplementedError('The network must have at least one dense layer')
 
