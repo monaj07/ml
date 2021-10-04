@@ -187,7 +187,8 @@ class CartPoleV0Simple4D:
         self.num_actions = self.env.action_space.n
         # Get the space size
         self.input_dim = self.env.state.size
-        self.average_score_required_to_win = 200
+        self.score_required_to_win = 200
+        self.average_score_required_to_win = self.env.spec.reward_threshold
 
     def run_single_episode(self, agent, explorer):
         # Make each episode deterministic based on the total_iteration_number
@@ -247,7 +248,7 @@ class CartPoleV0Simple4D:
             agent.total_steps_so_far += 1
 
             # If the agent has received a satisfactory episode reward, stop it.
-            if sum(episode_rewards) >= self.average_score_required_to_win:
+            if sum(episode_rewards) >= self.score_required_to_win:
                 finished = True
 
         # Return the total rewards collected within this single episode run
