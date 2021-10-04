@@ -42,14 +42,18 @@ class DQN:
     Cartpole doesn’t have a particularly complex state space,
     so it’s likely that all states are useful for learning throughout an agents lifetime.
     """
-    def __init__(self, input_dim, num_actions, double_dqn=False, seed=1364):
+    def __init__(self, input_dim, num_actions, network_params=None,
+                 set_device=None, gradient_clipping_norm=None,
+                 learning_rate=0.01, double_dqn=False, seed=1364):
         # Training parameters
         self.gamma = 0.99
-        self.batch_size = 128
+        self.batch_size = 256
         self.target_network_update = 10
         self.total_steps_so_far = 0
         self.save_model_frequency = 100
-        learning_rate = 0.001
+        self.learning_rate = learning_rate
+        self.latest_learning_rate = learning_rate
+        self.gradient_clipping_norm = gradient_clipping_norm
 
         # Experience Replay Memory
         self.memory_size = 40000
@@ -61,27 +65,32 @@ class DQN:
         # ----------------------------------------
 
         # if gpu is to be used
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if set_device is None:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            # self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = torch.device(set_device)
 
         # Alternative DQN training
         self.double_dqn = double_dqn
 
         # Q-network instantiation
         # (Explanation of the network_params in networks/network_builder.py)
-        network_params = {
-            'input_dim': input_dim,
-            'conv_layers': [(3, 16, 5, 2), (16, 32, 5, 2), (32, 32, 5, 2)],
-            'dense_layers': [num_actions],
-            'conv_bn': True,
-            'activation': 'relu'
-        }
+        if network_params is None:
+            network_params = {
+                'input_dim': input_dim,
+                'conv_layers': [(3, 16, 5, 2), (16, 32, 5, 2), (32, 32, 5, 2)],
+                'dense_layers': [num_actions],
+                'conv_bn': True,
+                'activation': 'relu'
+            }
         self.policy_net = CreateNet(network_params).to(self.device)
         self.target_net = CreateNet(network_params).to(self.device)
 
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
-        self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=learning_rate)
+        # self.optimizer = optim.RMSprop(self.policy_net.parameters(), lr=self.learning_rate)
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.learning_rate, eps=1e-4)
 
     def sample_from_replay_memory(self, batch_size=None):
         sample_size = self.batch_size if batch_size is None else self.batch_size
@@ -136,10 +145,42 @@ class DQN:
     def optimise(self, q_a_state_1, q_state_1_target):
         # Optimise the network parameters based on TD loss (q_expected, q_target)
         self.optimizer.zero_grad()
-        loss = F.smooth_l1_loss(q_a_state_1, q_state_1_target.view(-1, 1))
+        # loss = F.smooth_l1_loss(q_a_state_1, q_state_1_target.view(-1, 1))
+        loss = F.mse_loss(q_a_state_1, q_state_1_target.view(-1, 1))
         loss.backward()
+        if self.gradient_clipping_norm is not None:
+            torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(),
+                                           self.gradient_clipping_norm) #clip gradients to help stabilise training
+
         self.optimizer.step()
         return loss
+
+    def update_learning_rate(self, rolling_results, score_required_to_win):
+        """
+        Lowers the learning rate according to how close we are to the solution.
+        (Function burrowed from
+        https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/Base_Agent.py)
+        """
+        starting_lr = self.learning_rate
+        last_rolling_score = rolling_results[-1]
+        if last_rolling_score > 0.95 * score_required_to_win:
+            new_lr = starting_lr / 1000.0
+        elif last_rolling_score > 0.9 * score_required_to_win:
+            new_lr = starting_lr / 500.0
+        elif last_rolling_score > 0.75 * score_required_to_win:
+            new_lr = starting_lr / 100.0
+        elif last_rolling_score > 0.6 * score_required_to_win:
+            new_lr = starting_lr / 20.0
+        elif last_rolling_score > 0.5 * score_required_to_win:
+            new_lr = starting_lr / 10.0
+        elif last_rolling_score > 0.25 * score_required_to_win:
+            new_lr = starting_lr / 2.0
+        else:
+            return -1
+
+        for g in self.optimizer.param_groups:
+            g['lr'] = new_lr
+        return new_lr
 
     def learning_step(self, minibatch):
         # Compute loss over the minibatch and optimise the network parameters
