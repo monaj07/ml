@@ -32,6 +32,13 @@ def train(env, agent, explorer,
         format='%(message)s',
         level=logging.INFO
     )
+
+    logging.info("Agent and Environment:")
+    logging.info("-"*80)
+    logging.info({**explorer.__dict__, **env.__dict__, **agent.__dict__})
+    logging.info("-"*80)
+    logging.info("\nTraining:\n")
+
     episode_total_rewards = []
     rolling_results = []
     max_reward_so_far = np.iinfo(np.int16).min
@@ -72,7 +79,7 @@ def train(env, agent, explorer,
         if (episode % reward_curve_display_frequency) == 0 and episode > 0:
             plot_durations(episode_total_rewards, rolling_results, log_tag)
 
-        text = f"""\r Episode {episode}, """
+        text = f"""Episode {episode}, """
         text += f""" Score: {episode_total_rewards[-1]:.2f}, """
         text += f""" Max score seen: {max_reward_so_far:.2f}, """
         text += f""" Epsilon: {round(explorer.current_epsilon, 3):.2f}"""
@@ -80,7 +87,7 @@ def train(env, agent, explorer,
             text += f""" Rolling score: {rolling_results[-1]:.2f}, """
             text += f""" Max rolling score seen: {max_rolling_score_seen:.2f}"""
         logging.info(text)
-        sys.stdout.write(text)
+        sys.stdout.write("\r" + text)
         sys.stdout.flush()
 
 
