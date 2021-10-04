@@ -24,13 +24,13 @@ class ActionExplorer:
     tells the agent when to explore and when to exploit
     (which is when the returned action of this class is -1)
     """
-    def __init__(self, seed=1364):
+    def __init__(self, epsilon_decay=0.005, seed=1364):
 
         # Epsilon parameters
-        self.current_epsilon = 0.9
-        self.epsilon_start = 0.9
+        self.current_epsilon = 0.99
+        self.epsilon_start = 0.99
         self.epsilon_end = 0.05
-        self.epsilon_decay = 0.0001
+        self.epsilon_decay = epsilon_decay
 
         # ----------------------------------------
         # Make the algorithm outputs reproducible
