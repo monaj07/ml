@@ -5,20 +5,23 @@ import random
 import torch
 
 
-def make_deterministic(internal_seed, env=None):
-    # ----------------------------------------
-    # Make the algorithm outputs reproducible
-    torch.manual_seed(internal_seed)
-    np.random.seed(internal_seed)
-    random.seed(internal_seed)
-    torch.cuda.manual_seed_all(internal_seed)
-    torch.cuda.manual_seed(internal_seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    if env is not None:
-        env.seed(internal_seed)
-        env.action_space.seed(internal_seed)
-    # ----------------------------------------
+def make_deterministic(seed=-1, env=None):
+    if seed >= 0:
+        # ----------------------------------------
+        # Make the algorithm outputs reproducible
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        if env is not None:
+            env.seed(seed)
+            env.action_space.seed(seed)
+        # ----------------------------------------
+    else:
+        pass
 
 
 def plot_durations(episode_durations, rolling_reward, log_tag):
