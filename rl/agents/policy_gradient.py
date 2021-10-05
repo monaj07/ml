@@ -1,5 +1,57 @@
 """
 Policy Gradient algorithm
+In Policy Gradient, we directly model the policy pi_theta(a|s).
+For each state, this function outputs a probability distribution over all possible actions.
+
+The training is implemented this way:
+
+Starting from the beginning of the episode, we start off with a randomly initialised pi(a|s),
+and given s0, we calculate pi(a0|s0) and take a sample action (a0) from its output probability distribution.
+(Here we use Categorical module of pytorch to perform sampling).
+We also need to record the log_prob of that action (i.e. log(pi(a0|s0))),
+to use it in the weighted maximum likelihood optimisation. (weights are return values G_t)
+(Another nice feature of Categorical module is that we can simply get that log_prob for that action.
+
+    def get_action_and_log_prob(self, state_1):
+        policy_action_probs = self.policy_net(state_1.to(self.device))
+        policy_action_distribution = Categorical(logits=policy_action_probs)
+        action = policy_action_distribution.sample()
+        log_prob = policy_action_distribution.log_prob(action)
+        return action.item(), log_prob
+We then take that sampled action to move to the next state of the environment: env.step(a0) -> s1
+and record the achieved reward in that step.
+
+We then repeat the above process by calling 'get_action_and_log_prob(s1)' again,
+and for every single step in the episode, we record {log_prob(a_t), r_t} (two scalar values).
+Once the episode is finished, we need to compute the return values (G_t) for each recorded step in the episode.
+On top of that, we need to apply discount factor as well.
+The return is computed from the recorded episode reward vector this way:
+    input:
+        vector x,
+        [x0,
+         x1,
+         x2]
+    output:
+        [x0 + discount * x1 + (discount ^ 2) * x2,
+         x1 + discount * x2,
+         x2]
+This gives the (reward-to-go) G_t for every single step of the episode.
+If you don't want to use reward-to-go option, just set it to False,
+then it will assign the same return value
+(which is the return at the beginning of the episode G_0) to all steps of the episode.
+
+At the end of the episode, we have two vectors of [log_probs] and [G_t].
+We can do weighted maximum log-likelihood (each sample is the log_prob(a_t) weighted by its G_t).
+However it is recommended to run this in large batches, hence we fill our
+self.episode_return_batch and self.log_probs_batch, until it reaches the batch size.
+Then we compute the loss (which is mean of negative of weighted log-likelihood), and back propagate.
+
+It is importance to know that once this single back-propagation is done,
+our policy function, pi_theta(a|s), has been updated, and as a result,
+the previous samples that were recorded based on the old policy function are useless for training.
+We need to generate new samples from the updated policy.
+Therefore we go back to line 8 of this docstring (above) and repeat the process,
+with the difference that pi_theta(a|s) is NOT randomly initialised anymore, it has been updated :).
 """
 from collections import deque
 import numpy as np
@@ -160,10 +212,14 @@ class VanillaPolicyGradient:
                 finished = True
 
         ep_len = len(episode_rewards)
+
         # Computing episode return for all time points in the episode (G_t)
+        # input: vector [x0, x1, x2], output: [x0 + discount * x1 + (discount ^ 2) * x2,
+        #                                      x1 + discount * x2,
+        #                                      x2]
         if self.reward_to_go:
             episode_return = torch.tensor([
-                    sum(episode_rewards[i:]*(0.9**np.arange(ep_len-i)))
+                    sum(episode_rewards[i:]*(self.gamma ** np.arange(ep_len-i)))
                     for i in range(ep_len)
             ])
         else:

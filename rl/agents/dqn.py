@@ -8,6 +8,11 @@ loss <https://en.wikipedia.org/wiki/Huber_loss>`__. The Huber loss acts
 like the mean squared error when the error is small, but like the mean
 absolute error when the error is large - this makes it more robust to
 outliers when the estimates of :math:`Q` are very noisy.
+
+Also a very important and helpful trick:
+Reduce the learning rate according to how close we are to the solution.
+Implemented in update_learning_rate function
+(burrowed from https://github.com/p-christ)
 """
 from collections import deque
 import numpy as np
