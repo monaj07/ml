@@ -226,7 +226,7 @@ class DQN:
             self.policy_net.train()
         return action_1
 
-    def run_single_episode(self, env):
+    def run_single_episode(self, env, episode):
         # Make each episode deterministic based on the total_iteration_number
         make_deterministic(self.total_steps_so_far, env.env)
 
@@ -279,6 +279,10 @@ class DQN:
             # If the agent has received a satisfactory episode reward, stop it.
             if sum(episode_rewards) >= env.score_required_to_win:
                 finished = True
+
+        if (episode % self.target_network_update) == 0:
+            # Update the target network with the latest policy network parameters
+            self.target_net.load_state_dict(self.policy_net.state_dict())
 
         # Return the total rewards collected within this single episode run
         return episode_rewards
