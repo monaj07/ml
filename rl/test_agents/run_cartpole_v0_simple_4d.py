@@ -12,6 +12,7 @@ sys.path.append(dirname(dirname(abspath(__file__))))
 from utilities import plot_durations
 from exploration.exploration_strategies import ActionExplorer
 from agents.dqn import DQN
+from agents.policy_gradient import VanillaPolicyGradient
 from environments.cartpole_v0 import CartPoleV0Simple4D
 
 
@@ -37,7 +38,7 @@ def train(env, agent,
     logging.info("Agent and Environment:")
     logging.info("-"*80)
     log_content = {**env.__dict__, **agent.__dict__}
-    if agent.explorer is not None:
+    if "explorer" in agent.__dict__:
         log_content = {**log_content, **agent.explorer.__dict__}
     logging.info(log_content)
     logging.info("-"*80)
@@ -53,7 +54,10 @@ def train(env, agent,
         # At the beginning of each episode, reset the environment
         env.env.reset()
 
-        if episode > reward_curve_display_frequency * 5:
+        # The following step
+        # (dynamically reducing the learning rate based on the reward)
+        # is very very important to converge to the right point
+        if episode > 10:  # 10 is just an arbitrary number
             new_lr = agent.update_learning_rate(rolling_results, env.score_required_to_win)
             if new_lr > 0:
                 logging.info(f" -- Dropped the learning rate to {new_lr}")
@@ -61,7 +65,7 @@ def train(env, agent,
                 sys.stdout.flush()
 
         # Do a complete single episode run
-        episode_rewards = agent.run_single_episode(env)
+        episode_rewards = agent.run_single_episode(env, episode=episode)
 
         # Append the total rewards collected in the above finished episode
         episode_total_rewards.append(sum(episode_rewards))
@@ -83,17 +87,13 @@ def train(env, agent,
             # Save a snapshot at every "save_model_frequency" episode
             agent.save_snapshot(episode, int(sum(episode_rewards)))
 
-        if (episode % agent.target_network_update) == 0:
-            # Update the target network with the latest policy network parameters
-            agent.target_net.load_state_dict(agent.policy_net.state_dict())
-
         if (episode % reward_curve_display_frequency) == 0 and episode > 0:
             plot_durations(episode_total_rewards, rolling_results, log_tag)
 
         text = f"""Episode {episode}, """
         text += f""" Score: {episode_total_rewards[-1]:.2f}, """
         text += f""" Max score seen: {max_reward_so_far:.2f}, """
-        if agent.explorer is not None:
+        if "explorer" in agent.__dict__:
             text += f""" Epsilon: {round(agent.explorer.current_epsilon, 3):.2f}, """
         if episode >= rolling_window_size:
             text += f""" Rolling score: {rolling_results[-1]:.2f}, """
@@ -104,6 +104,7 @@ def train(env, agent,
 
         # When the agent has received enough reward, terminate the training
         if max_rolling_score_seen >= env.average_score_required_to_win:
+            plot_durations(episode_total_rewards, rolling_results, log_tag)
             break
 
 
@@ -111,39 +112,65 @@ if __name__ == "__main__":
     # Negative seed means the algorithm runs in stochastic mode
     # In other words, seed=-1 leads to Non-producible outputs
     seed = 1
-    total_episodes = 1501
     rolling_window_size = 100
-    reward_curve_display_frequency = 10
+    reward_curve_display_frequency = 100
     save_model_frequency = 100
-    learning_rate = 0.01
-    epsilon_decay = 0.005
-    gradient_clipping_norm = 0.7
-    set_device = 'cpu'
 
-    # Instantiate RL objects
     env = CartPoleV0Simple4D(seed=seed)
-    explorer = ActionExplorer(epsilon_decay=epsilon_decay, seed=seed)
-    network_params = {
-        'input_dim': env.input_dim,
-        'dense_layers': [30, 15, env.num_actions],
-        'activation': 'relu',
-        'dense_bn': True
-    }
-    agent = DQN(env.input_dim, env.num_actions,
-                network_params=network_params,
-                explorer=explorer,
-                gradient_clipping_norm=gradient_clipping_norm,
-                set_device=set_device,
-                learning_rate=learning_rate,
-                double_dqn=False,
-                seed=seed)
 
-    # Run training
-    train(
-        env,
-        agent,
-        total_episodes=total_episodes,
-        rolling_window_size=rolling_window_size,
-        reward_curve_display_frequency=reward_curve_display_frequency,
-        save_model_frequency=save_model_frequency
-    )
+    parameters = {
+        'dqn': {
+            'parameters': {
+                'input_dim': env.input_dim,
+                'num_actions': env.num_actions,
+                'network_params': {
+                    'input_dim': env.input_dim,
+                    'dense_layers': [30, 15, env.num_actions],
+                    'activation': 'relu',
+                    'dense_bn': True
+                },
+                'explorer': ActionExplorer(epsilon_decay=0.005, seed=seed),
+                'gradient_clipping_norm': 0.7,
+                'set_device': 'cpu',
+                'learning_rate': 0.01,
+                'double_dqn': False,
+                'seed': seed
+            },
+            'total_episodes': 501
+        },
+        'vpg': {
+            'parameters': {
+                'input_dim': env.input_dim,
+                'num_actions': env.num_actions,
+                'network_params': {
+                    'input_dim': env.input_dim,
+                    'dense_layers': [30, 15, env.num_actions],
+                    'activation': 'relu',
+                    # 'dense_bn': True
+                },
+                # 'gradient_clipping_norm': 0.7,
+                'reward_to_go': True,
+                'set_device': 'cpu',
+                'learning_rate': 0.01,
+                'seed': seed
+            },
+            'total_episodes': 10001
+        }
+    }
+
+    agents = {
+        'dqn': DQN(**parameters['dqn']['parameters']),
+        'vpg': VanillaPolicyGradient(**parameters['vpg']['parameters'])
+    }
+
+    for agent_name in ['dqn']:
+        agent = agents[agent_name]
+        # Run training
+        train(
+            env,
+            agent,
+            total_episodes=parameters[agent_name]['total_episodes'],
+            rolling_window_size=rolling_window_size,
+            reward_curve_display_frequency=reward_curve_display_frequency,
+            save_model_frequency=save_model_frequency
+        )
