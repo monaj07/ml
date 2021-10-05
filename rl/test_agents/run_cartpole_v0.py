@@ -15,7 +15,7 @@ from agents.dqn import DQN
 from environments.cartpole_v0 import CartPoleV0
 
 
-def train(env, agent, explorer,
+def train(env, agent,
           total_episodes=5001,
           reward_curve_display_frequency=100,
           save_model_frequency=100
@@ -35,7 +35,10 @@ def train(env, agent, explorer,
 
     logging.info("Agent and Environment:")
     logging.info("-"*80)
-    logging.info({**explorer.__dict__, **env.__dict__, **agent.__dict__})
+    log_content = {**env.__dict__, **agent.__dict__}
+    if agent.explorer is not None:
+        log_content = {**log_content, **agent.explorer.__dict__}
+    logging.info(log_content)
     logging.info("-"*80)
     logging.info("\nTraining:\n")
 
@@ -49,8 +52,15 @@ def train(env, agent, explorer,
         # At the beginning of each episode, reset the environment
         env.env.reset()
 
+        if episode > reward_curve_display_frequency * 5:
+            new_lr = agent.update_learning_rate(rolling_results, env.score_required_to_win)
+            if new_lr > 0:
+                logging.info(f" -- Dropped the learning rate to {new_lr}")
+                sys.stdout.write(f" -- Dropped the learning rate to {new_lr}")
+                sys.stdout.flush()
+
         # Do a complete single episode run
-        episode_rewards = env.run_single_episode(agent, explorer)
+        episode_rewards = agent.run_single_episode(env)
 
         # Append the total rewards collected in the above finished episode
         episode_total_rewards.append(sum(episode_rewards))
@@ -82,7 +92,8 @@ def train(env, agent, explorer,
         text = f"""Episode {episode}, """
         text += f""" Score: {episode_total_rewards[-1]:.2f}, """
         text += f""" Max score seen: {max_reward_so_far:.2f}, """
-        text += f""" Epsilon: {round(explorer.current_epsilon, 3):.2f}"""
+        if agent.explorer is not None:
+            text += f""" Epsilon: {round(agent.explorer.current_epsilon, 3):.2f}, """
         if episode >= 100:
             text += f""" Rolling score: {rolling_results[-1]:.2f}, """
             text += f""" Max rolling score seen: {max_rolling_score_seen:.2f}"""
@@ -102,9 +113,10 @@ if __name__ == "__main__":
     gradient_clipping_norm = 0.7
 
     # Instantiate RL objects
-    explorer = ActionExplorer(epsilon_decay=epsilon_decay, seed=seed)
     env = CartPoleV0(seed=seed)
+    explorer = ActionExplorer(epsilon_decay=epsilon_decay, seed=seed)
     agent = DQN(env.input_dim, env.num_actions,
+                explorer=explorer,
                 gradient_clipping_norm=gradient_clipping_norm,
                 learning_rate=learning_rate,
                 double_dqn=True,
@@ -113,7 +125,6 @@ if __name__ == "__main__":
     train(
         env,
         agent,
-        explorer,
         total_episodes=total_episodes,
         reward_curve_display_frequency=reward_curve_display_frequency,
         save_model_frequency=save_model_frequency

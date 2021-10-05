@@ -15,7 +15,7 @@ from agents.dqn import DQN
 from environments.cartpole_v0 import CartPoleV0Simple4D
 
 
-def train(env, agent, explorer,
+def train(env, agent,
           total_episodes=5001,
           rolling_window_size=100,
           reward_curve_display_frequency=100,
@@ -36,7 +36,10 @@ def train(env, agent, explorer,
 
     logging.info("Agent and Environment:")
     logging.info("-"*80)
-    logging.info({**explorer.__dict__, **env.__dict__, **agent.__dict__})
+    log_content = {**env.__dict__, **agent.__dict__}
+    if agent.explorer is not None:
+        log_content = {**log_content, **agent.explorer.__dict__}
+    logging.info(log_content)
     logging.info("-"*80)
     logging.info("\nTraining:\n")
 
@@ -58,7 +61,7 @@ def train(env, agent, explorer,
                 sys.stdout.flush()
 
         # Do a complete single episode run
-        episode_rewards = env.run_single_episode(agent, explorer)
+        episode_rewards = agent.run_single_episode(env)
 
         # Append the total rewards collected in the above finished episode
         episode_total_rewards.append(sum(episode_rewards))
@@ -90,7 +93,8 @@ def train(env, agent, explorer,
         text = f"""Episode {episode}, """
         text += f""" Score: {episode_total_rewards[-1]:.2f}, """
         text += f""" Max score seen: {max_reward_so_far:.2f}, """
-        text += f""" Epsilon: {round(explorer.current_epsilon, 3):.2f}, """
+        if agent.explorer is not None:
+            text += f""" Epsilon: {round(agent.explorer.current_epsilon, 3):.2f}, """
         if episode >= rolling_window_size:
             text += f""" Rolling score: {rolling_results[-1]:.2f}, """
             text += f""" Max rolling score seen: {max_rolling_score_seen:.2f}"""
@@ -117,8 +121,8 @@ if __name__ == "__main__":
     set_device = 'cpu'
 
     # Instantiate RL objects
-    explorer = ActionExplorer(epsilon_decay=epsilon_decay, seed=seed)
     env = CartPoleV0Simple4D(seed=seed)
+    explorer = ActionExplorer(epsilon_decay=epsilon_decay, seed=seed)
     network_params = {
         'input_dim': env.input_dim,
         'dense_layers': [30, 15, env.num_actions],
@@ -127,6 +131,7 @@ if __name__ == "__main__":
     }
     agent = DQN(env.input_dim, env.num_actions,
                 network_params=network_params,
+                explorer=explorer,
                 gradient_clipping_norm=gradient_clipping_norm,
                 set_device=set_device,
                 learning_rate=learning_rate,
@@ -137,7 +142,6 @@ if __name__ == "__main__":
     train(
         env,
         agent,
-        explorer,
         total_episodes=total_episodes,
         rolling_window_size=rolling_window_size,
         reward_curve_display_frequency=reward_curve_display_frequency,

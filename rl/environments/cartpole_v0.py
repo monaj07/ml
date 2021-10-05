@@ -44,6 +44,8 @@ class CartPoleV0:
         # the output of get_screen is a torch frame of shape (B, C, H, W)
         _, _, screen_height, screen_width = self.get_screen().shape
         self.input_dim = (screen_height, screen_width)
+        self.score_required_to_win = 200
+        self.average_score_required_to_win = self.env.spec.reward_threshold
 
     def _get_cart_location(self, screen_width):
         # x_threshold: maximum range of the cart to each side (in terms of units)
@@ -96,77 +98,22 @@ class CartPoleV0:
         final_torch_screen = resize(screen).unsqueeze(0)
         return final_torch_screen
 
-    def run_single_episode(self, agent, explorer):
-        # Make each episode deterministic based on the total_iteration_number
-        make_deterministic(agent.total_steps_so_far, self.env)
+    def get_state(self, episode_start=False):
+        if episode_start:
+            self.prev_screen = self.get_screen()
+        self.curr_screen = self.get_screen()
 
-        finished = False
-        episode_rewards = []
-        episode_losses = []
+        # Observe the next frame and create the next state.
+        # (In order to capture the dynamic of this environment,
+        # we form our state by computing the difference between two frames)
+        state = self.curr_screen - self.prev_screen
 
-        # Create the first state of the episode
-        prev_screen = self.get_screen()
-        curr_screen = self.get_screen()
-        state_1 = curr_screen - prev_screen
-
-        while not finished:
-            # select action (epsilon-greedy strategy)
-            action_1 = explorer(self.num_actions, agent.total_steps_so_far)
-            if action_1 == -1:
-                # Find the greedy action
-                with torch.no_grad():
-                    action_1 = agent.policy_net(state_1.to(agent.device)).max(-1)[1].item()
-            # Take the selected action in the environment
-            _, reward_1, finished, _ = self.env.step(action_1)
-
-            # After taking a step in the environment, the game frame is updated;
-            # so we put the content of the current screen into the prev_screen,
-            # and then (if game is not finished),
-            # update the value of current screen with a new get_screen() call.
-            prev_screen = curr_screen.clone()
-            if not finished:
-                # Observe the next frame and create the next state.
-                # (In order to capture the dynamic of this environment,
-                # we form our state by computing the difference between two frames)
-                curr_screen = self.get_screen()
-                state_2 = curr_screen - prev_screen
-            else:
-                # when episode is finished, state_2 does not matter,
-                # and won't contribute to the optimisation
-                # (because state_1 was the last state of the episode)
-                state_2 = 0 * state_1
-
-            # Add the current transition (s, a, r, s', done) to the replay memory
-            agent.add_experience_to_replay_memory(
-                state_1,
-                action_1,
-                reward_1,
-                state_2,
-                finished
-            )
-
-            # Policy Network optimisation:
-            # ----------------------------
-            # If there are enough sample transitions inside the replay_memory,
-            # then we can start training our policy network using them;
-            # Otherwise we move on to the next state of the episode.
-            if len(agent.replay_memory) >= agent.batch_size:
-                # Take a random sample minibatch from the replay memory
-                minibatch = agent.sample_from_replay_memory(agent.batch_size)
-                # Compute the TD loss over the minibatch
-                loss = agent.learning_step(minibatch)
-                # Track the value of loss (for debugging purpose)
-                episode_losses.append(loss.item())
-
-            # Go to the next step of the episode
-            state_1 = state_2
-            # Add up the rewards collected during this episode
-            episode_rewards.append(reward_1)
-            # One single training iteration is passed
-            agent.total_steps_so_far += 1
-
-        # Return the total rewards collected within this single episode run
-        return episode_rewards
+        # After taking a step in the environment, the game frame is updated;
+        # so we put the content of the current screen into the prev_screen,
+        # and then (if game is not finished),
+        # update the value of current screen with a new get_screen() call.
+        self.prev_screen = self.curr_screen.clone()
+        return state
 
 
 class CartPoleV0Simple4D:
@@ -190,69 +137,10 @@ class CartPoleV0Simple4D:
         self.score_required_to_win = 200
         self.average_score_required_to_win = self.env.spec.reward_threshold
 
-    def run_single_episode(self, agent, explorer):
-        # Make each episode deterministic based on the total_iteration_number
-        make_deterministic(agent.total_steps_so_far, self.env)
-
-        finished = False
-        episode_rewards = []
-        episode_losses = []
-
-        # Create the first state of the episode
-        state_1 = self.env.state
-        state_1 = torch.from_numpy(state_1).unsqueeze(0).float()
-
-        while not finished:
-            # select action (epsilon-greedy strategy)
-            action_1 = explorer(self.num_actions, agent.total_steps_so_far)
-            if action_1 == -1:
-                agent.policy_net.eval()
-                # Find the greedy action
-                with torch.no_grad():
-                    action_1 = agent.policy_net(state_1.to(agent.device)).max(-1)[1].item()
-                agent.policy_net.train()
-            # Take the selected action in the environment
-            state_2, reward_1, finished, _ = self.env.step(action_1)
-            state_2 = torch.from_numpy(state_2).unsqueeze(0).float()
-
-            if finished:
-                state_2 = 0 * state_1
-
-            # Add the current transition (s, a, r, s', done) to the replay memory
-            agent.add_experience_to_replay_memory(
-                state_1,
-                action_1,
-                reward_1,
-                state_2,
-                finished
-            )
-
-            # Policy Network optimisation:
-            # ----------------------------
-            # If there are enough sample transitions inside the replay_memory,
-            # then we can start training our policy network using them;
-            # Otherwise we move on to the next state of the episode.
-            if len(agent.replay_memory) >= agent.batch_size:
-                # Take a random sample minibatch from the replay memory
-                minibatch = agent.sample_from_replay_memory(agent.batch_size)
-                # Compute the TD loss over the minibatch
-                loss = agent.learning_step(minibatch)
-                # Track the value of loss (for debugging purpose)
-                episode_losses.append(loss.item())
-
-            # Go to the next step of the episode
-            state_1 = state_2
-            # Add up the rewards collected during this episode
-            episode_rewards.append(reward_1)
-            # One single training iteration is passed
-            agent.total_steps_so_far += 1
-
-            # If the agent has received a satisfactory episode reward, stop it.
-            if sum(episode_rewards) >= self.score_required_to_win:
-                finished = True
-
-        # Return the total rewards collected within this single episode run
-        return episode_rewards
+    def get_state(self, episode_start=False):
+        state = np.array(self.env.state)
+        state = torch.from_numpy(state).unsqueeze(0).float()
+        return state
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 sys.path.append(dirname(dirname(abspath(__file__))))
+from exploration.exploration_strategies import ActionExplorer
 from networks.network_builder import CreateNet
 from utilities import make_deterministic
 
@@ -43,6 +44,7 @@ class DQN:
     so it’s likely that all states are useful for learning throughout an agents lifetime.
     """
     def __init__(self, input_dim, num_actions, network_params=None,
+                 explorer=None,
                  set_device=None, gradient_clipping_norm=None,
                  learning_rate=0.01, double_dqn=False, seed=1364):
         # Training parameters
@@ -54,6 +56,12 @@ class DQN:
         self.learning_rate = learning_rate
         self.latest_learning_rate = learning_rate
         self.gradient_clipping_norm = gradient_clipping_norm
+
+        # Explorer
+        if explorer is None:
+            self.explorer = ActionExplorer(epsilon_decay=0.005, seed=seed)
+        else:
+            self.explorer = explorer
 
         # Experience Replay Memory
         self.memory_size = 40000
@@ -206,6 +214,74 @@ class DQN:
         # Optimisation:
         loss = self.optimise(q_a_state_1, q_state_1_target)
         return loss
+
+    def get_action(self, env, state_1):
+        # select action (epsilon-greedy strategy)
+        action_1 = self.explorer(env.num_actions, self.total_steps_so_far)
+        if action_1 == -1:
+            self.policy_net.eval()
+            # Find the greedy action
+            with torch.no_grad():
+                action_1 = self.policy_net(state_1.to(self.device)).max(-1)[1].item()
+            self.policy_net.train()
+        return action_1
+
+    def run_single_episode(self, env):
+        # Make each episode deterministic based on the total_iteration_number
+        make_deterministic(self.total_steps_so_far, env.env)
+
+        finished = False
+        episode_rewards = []
+        episode_losses = []
+
+        # Create the first state of the episode
+        state_1 = env.get_state(episode_start=True)
+
+        while not finished:
+            action_1 = self.get_action(env, state_1)
+            # Take the selected action in the environment
+            s2, reward_1, finished, _ = env.env.step(action_1)
+
+            # when episode is finished, state_2 does not matter,
+            # and won't contribute to the optimisation
+            # (because state_1 was the last state of the episode)
+            state_2 = (0 * state_1) if finished else env.get_state()
+
+            # Add the current transition (s, a, r, s', done) to the replay memory
+            self.add_experience_to_replay_memory(
+                state_1,
+                action_1,
+                reward_1,
+                state_2,
+                finished
+            )
+
+            # Policy Network optimisation:
+            # ----------------------------
+            # If there are enough sample transitions inside the replay_memory,
+            # then we can start training our policy network using them;
+            # Otherwise we move on to the next state of the episode.
+            if len(self.replay_memory) >= self.batch_size:
+                # Take a random sample minibatch from the replay memory
+                minibatch = self.sample_from_replay_memory(self.batch_size)
+                # Compute the TD loss over the minibatch
+                loss = self.learning_step(minibatch)
+                # Track the value of loss (for debugging purpose)
+                episode_losses.append(loss.item())
+
+            # Go to the next step of the episode
+            state_1 = state_2
+            # Add up the rewards collected during this episode
+            episode_rewards.append(reward_1)
+            # One single training iteration is passed
+            self.total_steps_so_far += 1
+
+            # If the agent has received a satisfactory episode reward, stop it.
+            if sum(episode_rewards) >= env.score_required_to_win:
+                finished = True
+
+        # Return the total rewards collected within this single episode run
+        return episode_rewards
 
     def save_snapshot(self, episode, reward):
         try:
