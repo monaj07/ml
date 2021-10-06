@@ -76,6 +76,7 @@ class VanillaPolicyGradient:
                  set_device=None, gradient_clipping_norm=None,
                  reward_to_go=True,
                  learning_rate=0.01, seed=1364):
+        self.seed = seed
         # Training parameters
         self.gamma = 0.99
         self.total_steps_so_far = 0

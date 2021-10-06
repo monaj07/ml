@@ -52,6 +52,7 @@ class DQN:
                  explorer=None,
                  set_device=None, gradient_clipping_norm=None,
                  learning_rate=0.01, double_dqn=False, seed=1364):
+        self.seed = seed
         # Training parameters
         self.gamma = 0.99
         self.batch_size = 256
