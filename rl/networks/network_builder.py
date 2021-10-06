@@ -46,6 +46,10 @@ class CreateNet(nn.Module):
     """
     def __init__(self, params):
         super(CreateNet, self).__init__()
+        try:
+            self.actor_critic = params['actor_critic']
+        except:
+            self.actor_critic = False
 
         # if there are conv layers in the network,
         # input_dim is going to be a tuple (h, w),
@@ -72,7 +76,10 @@ class CreateNet(nn.Module):
 
         # Packing the conv layers in the network layers
         if 'conv_layers' in params.keys():
-            conv_h, conv_w = input_dim
+            try:
+                conv_h, conv_w = input_dim
+            except:
+                raise ValueError("The conv layer requires input data to be of image type (2D)")
             for conv_layer in params['conv_layers']:
                 in_channels, out_channels, kernel_size, stride = conv_layer
                 network_layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride))
@@ -85,10 +92,15 @@ class CreateNet(nn.Module):
                 conv_w = conv2d_shape_out(conv_w, kernel_size=kernel_size, stride=stride)
             dense_input_shape = conv_w * conv_h * out_channels
             network_layers.append(nn.Flatten())
+        elif isinstance(input_dim, tuple):
+            raise ValueError("The input data is in image format, "
+                             "but there is no conv layer in the network parameters")
+
 
         # Packing dense layers in the network layers
         if 'dense_layers' in params.keys():
-            for layer_idx, dense_layer_size in enumerate(params['dense_layers']):
+            # iterate over all layers except for the last/output layer
+            for layer_idx, dense_layer_size in enumerate(params['dense_layers'][:-1]):
                 network_layers.append(nn.Linear(dense_input_shape, dense_layer_size))
                 if layer_idx < (len(params['dense_layers']) - 1):
                     # We are NOT at the last layer of the network yet,
@@ -103,12 +115,23 @@ class CreateNet(nn.Module):
         else:
             raise NotImplementedError('The network must have at least one dense layer')
 
-        # Add layers parametrically to the network
-        self.layers = nn.Sequential(*network_layers)
+        # Add base layers parametrically to the network
+        self.shared_layers = nn.Sequential(*network_layers)
+
+        # Set the output layer of the network
+        self.policy_layer = nn.Linear(dense_input_shape, params['dense_layers'][-1])
+
+        # In case of actor-critic algorithms, there will be another output for V(s)
+        if self.actor_critic:
+            self.critic_layer = nn.Linear(dense_input_shape, 1)
 
     def forward(self, x):
-        output = self.layers(x)
-        return output
+        base_output = self.shared_layers(x)
+        policy_output = self.policy_layer(base_output)
+        if self.actor_critic:
+            critic_output = self.critic_layer(base_output)
+            return policy_output, critic_output
+        return policy_output
 
 
 if __name__ == "__main__":
@@ -117,6 +140,7 @@ if __name__ == "__main__":
         'conv_layers': [(3, 16, 5, 2), (16, 16, 5, 2)],
         'dense_layers': [8, 2],
         'conv_bn': True,
+        'actor_critic': True,
         'activation': 'relu'
     }
     model = CreateNet(network_params)
