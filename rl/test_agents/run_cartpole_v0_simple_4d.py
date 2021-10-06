@@ -13,7 +13,7 @@ from utilities import plot_durations
 from exploration.exploration_strategies import ActionExplorer
 from agents.dqn import DQN
 from agents.policy_gradient import VanillaPolicyGradient
-from environments.cartpole_v0 import CartPoleV0Simple4D
+from environments.cartpole_v0 import CartPoleV0Simple4D, CartPoleV0
 
 
 def train(env, agent,
@@ -27,22 +27,24 @@ def train(env, agent,
     for a number of 'total_episodes' episodes.
     During each single run episode, the agent learns to collect more rewards.
     """
+    agent_name = agent.__class__.__name__
     os.makedirs('./logs_and_figs', exist_ok=True)
     log_tag = datetime.now().strftime('%Y-%m-%d--%H-%M')
-    logging.basicConfig(
-        filename=f"./logs_and_figs/{log_tag}.log",
-        format='%(message)s',
-        level=logging.INFO
-    )
+    logger = logging.getLogger()
+    file_handler = logging.FileHandler(filename=f"./logs_and_figs/{log_tag}_{agent_name}.log")
+    formatter = logging.Formatter('%(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.INFO)
 
-    logging.info("Agent and Environment:")
-    logging.info("-"*80)
+    logger.info("\nAgent and Environment:\n")
+    logger.info("-"*80)
     log_content = {**env.__dict__, **agent.__dict__}
     if "explorer" in agent.__dict__:
         log_content = {**log_content, **agent.explorer.__dict__}
-    logging.info(log_content)
-    logging.info("-"*80)
-    logging.info("\nTraining:\n")
+    logger.info(log_content)
+    logger.info("-"*80)
+    logger.info("\nTraining:\n")
 
     episode_total_rewards = []
     rolling_results = []
@@ -57,12 +59,9 @@ def train(env, agent,
         # The following step
         # (dynamically reducing the learning rate based on the reward)
         # is very very important to converge to the right point
+        changed_lr = -1
         if episode > 10:  # 10 is just an arbitrary number
-            new_lr = agent.update_learning_rate(rolling_results, env.score_required_to_win)
-            if new_lr > 0:
-                logging.info(f" -- Dropped the learning rate to {new_lr}")
-                sys.stdout.write(f" -- Dropped the learning rate to {new_lr}")
-                sys.stdout.flush()
+            changed_lr = agent.update_learning_rate(rolling_results, env.score_required_to_win)
 
         # Do a complete single episode run
         episode_rewards = agent.run_single_episode(env, episode=episode)
@@ -88,23 +87,27 @@ def train(env, agent,
             agent.save_snapshot(episode, int(sum(episode_rewards)))
 
         if (episode % reward_curve_display_frequency) == 0 and episode > 0:
-            plot_durations(episode_total_rewards, rolling_results, log_tag)
+            plot_durations(episode_total_rewards, rolling_results, log_tag, agent_name)
 
         text = f"""Episode {episode}, """
         text += f""" Score: {episode_total_rewards[-1]:.2f}, """
-        text += f""" Max score seen: {max_reward_so_far:.2f}, """
+        text += f""" Max_score_seen: {max_reward_so_far:.2f}, """
         if "explorer" in agent.__dict__:
             text += f""" Epsilon: {round(agent.explorer.current_epsilon, 3):.2f}, """
+        if changed_lr > 0:
+            text += f""" Changed_LR: {changed_lr}, """
         if episode >= rolling_window_size:
-            text += f""" Rolling score: {rolling_results[-1]:.2f}, """
-            text += f""" Max rolling score seen: {max_rolling_score_seen:.2f}"""
-        logging.info(text)
+            text += f""" Rolling_score: {rolling_results[-1]:.2f}, """
+            text += f""" Max_rolling_score_seen: {max_rolling_score_seen:.2f}"""
+        logger.info(text)
         sys.stdout.write("\r" + text)
         sys.stdout.flush()
 
         # When the agent has received enough reward, terminate the training
         if max_rolling_score_seen >= env.average_score_required_to_win:
-            plot_durations(episode_total_rewards, rolling_results, log_tag)
+            plot_durations(episode_total_rewards, rolling_results, log_tag, agent_name)
+            logger.info("-"*80)
+            logger.info("Successfully passed the acceptable reward threshold.\n")
             break
 
 
@@ -117,6 +120,7 @@ if __name__ == "__main__":
     save_model_frequency = 100
 
     env = CartPoleV0Simple4D(seed=seed)
+    # env = CartPoleV0(seed=seed)
 
     parameters = {
         'dqn': {
@@ -151,7 +155,7 @@ if __name__ == "__main__":
                 # 'gradient_clipping_norm': 0.7,
                 'reward_to_go': True,
                 'set_device': 'cpu',
-                'learning_rate': 0.01,
+                'learning_rate': 0.1,
                 'seed': seed
             },
             'total_episodes': 10001
@@ -163,7 +167,7 @@ if __name__ == "__main__":
         'vpg': VanillaPolicyGradient(**parameters['vpg']['parameters'])
     }
 
-    for agent_name in ['dqn']:
+    for agent_name in agents.keys():
         agent = agents[agent_name]
         # Run training
         train(

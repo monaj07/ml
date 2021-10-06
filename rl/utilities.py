@@ -24,16 +24,16 @@ def make_deterministic(seed=-1, env=None):
         pass
 
 
-def plot_durations(episode_durations, rolling_reward, log_tag):
+def plot_durations(episode_durations, rolling_reward, log_tag, agent_name):
     # plt.figure(2)
     # plt.clf()
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
-    plt.title('Training...')
+    plt.title(f'Training {agent_name}')
     plt.xlabel('Episode')
     plt.ylabel('Duration')
     plt.plot(durations_t.numpy(), label='Single episode reward')
     # Take 100 episode averages and plot them too
     plt.plot(rolling_reward, label='Average reward in the last 100 episodes')
     plt.legend()
-    plt.savefig(f'./logs_and_figs/{log_tag}')
+    plt.savefig(f'./logs_and_figs/{log_tag}_{agent_name}')
     plt.pause(0.001)  # pause a bit so that plots are updated
