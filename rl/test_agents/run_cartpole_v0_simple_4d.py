@@ -30,21 +30,21 @@ def train(env, agent,
     agent_name = agent.__class__.__name__
     os.makedirs('./logs_and_figs', exist_ok=True)
     log_tag = datetime.now().strftime('%Y-%m-%d--%H-%M')
-    logger = logging.getLogger()
-    file_handler = logging.FileHandler(filename=f"./logs_and_figs/{log_tag}_{agent_name}.log")
-    formatter = logging.Formatter('%(message)s')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    logger.setLevel(logging.INFO)
+    logging.basicConfig(
+        filename=f"./logs_and_figs/{log_tag}.log",
+        format='%(message)s',
+        level=logging.INFO
+    )
 
-    logger.info("\nAgent and Environment:\n")
-    logger.info("-"*80)
+    logging.info("\nAgent and Environment:\n")
+    logging.info(f"{agent_name}")
+    logging.info("-"*80)
     log_content = {**env.__dict__, **agent.__dict__}
     if "explorer" in agent.__dict__:
         log_content = {**log_content, **agent.explorer.__dict__}
-    logger.info(log_content)
-    logger.info("-"*80)
-    logger.info("\nTraining:\n")
+    logging.info(log_content)
+    logging.info("-"*80)
+    logging.info("\nTraining:\n")
 
     episode_total_rewards = []
     rolling_results = []
@@ -99,15 +99,15 @@ def train(env, agent,
         if episode >= rolling_window_size:
             text += f""" Rolling_score: {rolling_results[-1]:.2f}, """
             text += f""" Max_rolling_score_seen: {max_rolling_score_seen:.2f}"""
-        logger.info(text)
+        logging.info(text)
         sys.stdout.write("\r" + text)
         sys.stdout.flush()
 
         # When the agent has received enough reward, terminate the training
         if max_rolling_score_seen >= env.average_score_required_to_win:
             plot_durations(episode_total_rewards, rolling_results, log_tag, agent_name)
-            logger.info("-"*80)
-            logger.info("Successfully passed the acceptable reward threshold.\n")
+            logging.info("-"*80)
+            logging.info("Successfully passed the acceptable reward threshold.\n")
             break
 
 
