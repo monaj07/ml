@@ -5,7 +5,14 @@ Implemented by Monaj at 3/10/2021.
 import torch.nn as nn
 
 
-activation_functions = {'relu': nn.ReLU(), 'relu6': nn.ReLU6(), 'elu': nn.ELU(), 'l_relu': nn.LeakyReLU()}
+activation_functions = {
+    'relu': nn.ReLU(),
+    'relu6': nn.ReLU6(),
+    'elu': nn.ELU(),
+    'l_relu': nn.LeakyReLU(),
+    'sigmoid': nn.Sigmoid(),
+    'tanh': nn.Tanh()
+}
 
 
 class CreateNet(nn.Module):
@@ -125,9 +132,15 @@ class CreateNet(nn.Module):
         if self.actor_critic:
             self.critic_layer = nn.Linear(dense_input_shape, 1)
 
+        try:
+            self.output_activation = params['non_linear_output']
+        except:
+            self.output_activation = nn.Identity()
+
     def forward(self, x):
         base_output = self.shared_layers(x)
         policy_output = self.policy_layer(base_output)
+        policy_output = self.output_activation(policy_output)
         if self.actor_critic:
             critic_output = self.critic_layer(base_output)
             return policy_output, critic_output
@@ -140,7 +153,6 @@ if __name__ == "__main__":
         'conv_layers': [(3, 16, 5, 2), (16, 16, 5, 2)],
         'dense_layers': [8, 2],
         'conv_bn': True,
-        'actor_critic': True,
         'activation': 'relu'
     }
     model = CreateNet(network_params)
