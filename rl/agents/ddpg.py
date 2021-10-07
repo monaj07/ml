@@ -21,6 +21,22 @@ along with the observation/state input.
 Now, the output of this critic network kind of indicates
 the values of the selected action by the actor network for the observed state.
 
+Important notes:
+For each degree of freedom in action space, we need a separate neuron.
+For example, for an autonomous driving task, three actions are provided:
+{Acceleration, Break, Steering}.
+Thus, in this case, the actor network will have three outputs,
+and we squash these outputs using non-linear activation (sigmoid or tanh).
+Similarly three action neurons with the predicted values are passed to the critic.
+For instance, steering can vary from −90◦ to 90◦
+and acceleration can vary from 0 to 15m/s^2.
+Hence we design their non-linear activation this way and re-scale them accordingly:
+{Accel: sigmoid [0, 1], Break: sigmoid [0, 1], Steering: Tanh [-1, 1]}
+When applying these actions to the environment,
+we re-scale them to map them to their full potential range in the environment.
+https://arxiv.org/pdf/1811.11329.pdf
+https://jsideas.net/ddpg_reacher/
+
 More specifically, we need to train two models; Actor and Critic.
 However, in order to have a more stable training,
 similar to our strategy in DQN-with-fixed-target-network,
