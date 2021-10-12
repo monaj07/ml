@@ -181,7 +181,7 @@ class DDPG:
         # For that, we feed µ(s1|θ) as the predicted action input of the critic network
         # and perform the optimisation (maximum likelihood for q_values of critic network)
         # only over the actor parameters θ.
-        actions_predicted = self.actor_net(minibatch_state_1)
+        actions_predicted = self.actor_net(minibatch_state_1.to(self.device))
         q_a_state_1 = self.critic_net(
             minibatch_state_1.to(self.device),
             actions_predicted.to(torch.float).to(self.device)
@@ -374,10 +374,10 @@ class DDPG:
             return -1, -1
 
         new_lr_actor = self.learning_rate_actor / divisor
-        for g in self.optimise_actor.param_groups:
+        for g in self.optimizer_actor.param_groups:
             g['lr'] = new_lr_actor
         new_lr_critic = self.learning_rate_critic / divisor
-        for g in self.optimise_critic.param_groups:
+        for g in self.optimizer_critic.param_groups:
             g['lr'] = new_lr_critic
         return new_lr_actor, new_lr_critic
 
