@@ -101,10 +101,10 @@ def train(env, agent,
         if "explorer" in agent.__dict__:
             text += f""" Epsilon: {round(agent.explorer.current_epsilon, 3):.2f}, """
         if changed_lr_actor > 0:
-            text += f""" Changed_LR_Actor: {changed_lr_actor}, """
+            text += f""" Changed_LR_Actor: {changed_lr_actor:.6f}, """
         if changed_lr_critic > 0:
-            text += f""" Changed_LR_Critic: {changed_lr_critic}, """
-        if episode >= rolling_window_size:
+            text += f""" Changed_LR_Critic: {changed_lr_critic:.6f}, """
+        if episode >= 1:
             text += f""" Rolling_score: {rolling_results[-1]:.2f}, """
             text += f""" Max_rolling_score_seen: {max_rolling_score_seen:.2f}"""
         logging.info(text)
@@ -112,10 +112,11 @@ def train(env, agent,
         sys.stdout.flush()
 
         # When the agent has received enough reward, terminate the training
-        if max_rolling_score_seen >= env.average_score_required_to_win:
+        if rolling_results[-1] >= env.average_score_required_to_win and episode > rolling_window_size / 2:
             plot_durations(episode_total_rewards, rolling_results, log_tag, agent_name)
             logging.info("-"*80)
             logging.info("Successfully passed the acceptable reward threshold.\n")
+            sys.stdout.write("\nSuccessfully passed the acceptable reward threshold.\n")
             break
 
 
@@ -123,7 +124,7 @@ if __name__ == "__main__":
     # Negative seed means the algorithm runs in stochastic mode
     # In other words, seed=-1 leads to Non-reproducible outputs
     seed = 1
-    number_of_learning_iterations_in_one_step=10
+    number_of_learning_iterations_in_one_step = 10
     rolling_window_size = 100
     reward_curve_display_frequency = 10
     save_model_frequency = 100

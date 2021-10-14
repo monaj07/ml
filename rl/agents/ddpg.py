@@ -95,7 +95,7 @@ import torch.nn.functional as F
 
 sys.path.append(dirname(dirname(abspath(__file__))))
 from networks.networks import ActorDDPG, CriticDDPG
-from utilities import make_deterministic
+from utilities import make_deterministic, OU_Noise
 
 
 class DDPG:
@@ -120,6 +120,8 @@ class DDPG:
 
         # Explorer
         self.actor_noise_scale = actor_noise_scale
+        self.noise = OU_Noise(action_dimension, seed, 0, 0.15, 0.25)
+        self.noise.reset()
 
         # Experience Replay Memory
         self.memory_size = 1000000
@@ -276,7 +278,7 @@ class DDPG:
         self.actor_net.eval()
         with torch.no_grad():
             action = torch.clip(
-                self.actor_net(state_1.to(self.device)) + torch.randn(1).to(self.device) * self.actor_noise_scale,
+                self.actor_net(state_1.to(self.device)) + self.noise.sample(),
                 env.env.action_space.low.item(),
                 env.env.action_space.high.item()
             )
