@@ -15,6 +15,7 @@ from environments.mountain_car_v0 import MountainCarV0
 
 
 def train(env, agent,
+          number_of_learning_iterations_in_one_step=1,
           total_episodes=5001,
           rolling_window_size=100,
           reward_curve_display_frequency=100,
@@ -58,14 +59,18 @@ def train(env, agent,
         # (dynamically reducing the learning rate based on the reward)
         # is very very important to converge to the right point
         changed_lr_actor, changed_lr_critic = -1, -1
-        if episode > 10:  # 10 is just an arbitrary number
+        if episode > 0:  # 0 is just an arbitrary number
             changed_lr_actor, changed_lr_critic = agent.update_learning_rate(
                 rolling_results,
                 env.score_required_to_win
             )
 
         # Do a complete single episode run
-        episode_rewards = agent.run_single_episode(env, episode=episode)
+        episode_rewards = agent.run_single_episode(
+            env,
+            episode=episode,
+            number_of_learning_iterations_in_one_step=number_of_learning_iterations_in_one_step
+        )
 
         # Append the total rewards collected in the above finished episode
         episode_total_rewards.append(sum(episode_rewards))
@@ -116,8 +121,9 @@ def train(env, agent,
 
 if __name__ == "__main__":
     # Negative seed means the algorithm runs in stochastic mode
-    # In other words, seed=-1 leads to Non-producible outputs
+    # In other words, seed=-1 leads to Non-reproducible outputs
     seed = 1
+    number_of_learning_iterations_in_one_step=10
     rolling_window_size = 100
     reward_curve_display_frequency = 10
     save_model_frequency = 100
@@ -134,6 +140,7 @@ if __name__ == "__main__":
                 'learning_rate_actor': 0.003,
                 'learning_rate_critic': 0.02,
                 'actor_noise_scale': 0.1,
+                'steps_between_learning_steps': 20,
                 'polyac': 0.995,
                 'max_episode_length': 1000,
                 'seed': seed
@@ -152,6 +159,7 @@ if __name__ == "__main__":
         train(
             env,
             agent,
+            number_of_learning_iterations_in_one_step,
             total_episodes=parameters[agent_name]['total_episodes'],
             rolling_window_size=rolling_window_size,
             reward_curve_display_frequency=reward_curve_display_frequency,

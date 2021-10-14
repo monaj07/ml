@@ -102,7 +102,7 @@ class DDPG:
     def __init__(self, input_dim, action_dimension,
                  set_device=None, gradient_clipping_norm=None,
                  learning_rate_actor=0.01, learning_rate_critic=0.01,
-                 actor_noise_scale=0.1,
+                 actor_noise_scale=0.1, steps_between_learning_steps=1,
                  max_episode_length=2000, polyac=0.99, seed=1364):
         self.seed = seed
         # Training parameters
@@ -116,6 +116,7 @@ class DDPG:
         self.learning_rate_critic = learning_rate_critic
         self.gradient_clipping_norm = gradient_clipping_norm
         self.polyac = polyac
+        self.steps_between_learning_steps = steps_between_learning_steps
 
         # Explorer
         self.actor_noise_scale = actor_noise_scale
@@ -282,7 +283,7 @@ class DDPG:
         self.actor_net.train()
         return action.cpu().numpy()
 
-    def run_single_episode(self, env, episode):
+    def run_single_episode(self, env, episode, number_of_learning_iterations_in_one_step=1):
         # Make each episode deterministic based on the total_iteration_number
         make_deterministic(self.total_steps_so_far, env.env)
 
@@ -319,17 +320,19 @@ class DDPG:
             # then we can start training our policy network using them;
             # Otherwise we move on to the next state of the episode.
             if len(self.replay_memory) >= self.batch_size:
-                # Take a random sample minibatch from the replay memory
-                minibatch = self.sample_from_replay_memory(self.batch_size)
+                if self.total_steps_so_far % self.steps_between_learning_steps == 0:
+                    for _ in range(number_of_learning_iterations_in_one_step):
+                        # Take a random sample minibatch from the replay memory
+                        minibatch = self.sample_from_replay_memory(self.batch_size)
 
-                # Compute the TD loss over the minibatch
-                _, _ = self.learning_step(minibatch)
+                        # Compute the TD loss over the minibatch
+                        _, _ = self.learning_step(minibatch)
 
-                # Track the value of loss (for debugging purpose)
-                # episode_losses.append(loss.item())
+                        # Track the value of loss (for debugging purpose)
+                        # episode_losses.append(loss.item())
 
-                # Update the target networks (polyac averaging)
-                self.soft_update_target_networks()
+                        # Update the target networks (polyac averaging)
+                        self.soft_update_target_networks()
 
             # Go to the next step of the episode
             state_1 = state_2
