@@ -41,7 +41,7 @@ class ActorDDPG(nn.Module):
         dense_layers.append(nn.BatchNorm1d(20))
         dense_layers.append(nn.ReLU6())
         dense_layers.append(nn.Linear(20, action_dimension))
-        # dense_layers.append(nn.Tanh())
+        dense_layers.append(nn.Tanh())
 
         self.dense_layers = nn.Sequential(*dense_layers)
 
