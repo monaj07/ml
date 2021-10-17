@@ -10,7 +10,7 @@ import sys
 
 sys.path.append(dirname(dirname(abspath(__file__))))
 from utilities import plot_durations
-from agents.ddpg import DDPG
+from agents.td3 import TD3
 from environments.mountain_car_v0 import MountainCarV0
 
 
@@ -147,11 +147,33 @@ if __name__ == "__main__":
                 'seed': seed
             },
             'total_episodes': 501
+        },
+        'td3': {
+            'parameters': {
+                'input_dim': env.input_dim,
+                'action_dimension': env.action_dimension,
+                'gradient_clipping_norm': 5,
+                'set_device': 'cpu',
+                'learning_rate_actor': 0.0003,
+                'learning_rate_critic': 0.002,
+                'actor_noise_scale': 0.1,
+                'steps_between_learning_steps': 20,
+                'polyac': 0.995,
+                'max_episode_length': 1000,
+                'seed': seed,
+                # TD3 parameters:
+                'starting_iteration_to_follow_policy': 0,
+                'update_policy_and_targets_skip_rate': 2,
+                'target_actor_noise_scale': 0.2,
+                'target_actor_noise_clip': 0.5
+            },
+            'total_episodes': 501
         }
     }
 
     agents = {
-        'ddpg': DDPG(**parameters['ddpg']['parameters'])
+        # 'ddpg': DDPG(**parameters['ddpg']['parameters']),
+        'td3': TD3(**parameters['td3']['parameters'])
     }
 
     for agent_name in agents.keys():

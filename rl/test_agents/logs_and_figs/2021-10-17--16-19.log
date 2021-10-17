@@ -1,0 +1,228 @@
+
+Agent and Environment:
+
+TD3
+--------------------------------------------------------------------------------
+{'env': <gym.envs.classic_control.continuous_mountain_car.Continuous_MountainCarEnv object at 0x104dfcac8>, 'action_dimension': 1, 'input_dim': 2, 'score_required_to_win': 90, 'average_score_required_to_win': 90.0, 'seed': 1, 'gamma': 0.99, 'batch_size': 256, 'target_network_update': 10, 'total_steps_so_far': 0, 'max_episode_length': 1000, 'save_model_frequency': 100, 'learning_rate_actor': 0.0003, 'learning_rate_critic': 0.002, 'gradient_clipping_norm': 5, 'polyac': 0.995, 'steps_between_learning_steps': 20, 'actor_noise_scale': 0.1, 'noise': <utilities.OU_Noise object at 0x1287b7630>, 'memory_size': 1000000, 'replay_memory': deque([], maxlen=1000000), 'device': device(type='cpu'), 'actor_net': ActorDDPG(
+  (dense_layers): Sequential(
+    (0): Linear(in_features=2, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU6()
+    (3): Linear(in_features=20, out_features=1, bias=True)
+    (4): Tanh()
+  )
+), 'critic_net': CriticDDPG(
+  (dense_base_layers): Sequential(
+    (0): Linear(in_features=2, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU()
+  )
+  (dense_layers): Sequential(
+    (0): Linear(in_features=21, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU6()
+    (3): Linear(in_features=20, out_features=1, bias=True)
+  )
+), 'actor_net_target': ActorDDPG(
+  (dense_layers): Sequential(
+    (0): Linear(in_features=2, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU6()
+    (3): Linear(in_features=20, out_features=1, bias=True)
+    (4): Tanh()
+  )
+), 'critic_net_target': CriticDDPG(
+  (dense_base_layers): Sequential(
+    (0): Linear(in_features=2, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU()
+  )
+  (dense_layers): Sequential(
+    (0): Linear(in_features=21, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU6()
+    (3): Linear(in_features=20, out_features=1, bias=True)
+  )
+), 'optimizer_actor': Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    eps: 0.0001
+    lr: 0.0003
+    weight_decay: 0
+), 'optimizer_critic': Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    eps: 0.0001
+    lr: 0.002
+    weight_decay: 0
+), 'update_policy_and_targets_skip_rate': 2, 'target_actor_noise_scale': 0.2, 'target_actor_noise_clip': 0.5, 'critic_net_twin': CriticDDPG(
+  (dense_base_layers): Sequential(
+    (0): Linear(in_features=2, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU()
+  )
+  (dense_layers): Sequential(
+    (0): Linear(in_features=21, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU6()
+    (3): Linear(in_features=20, out_features=1, bias=True)
+  )
+), 'critic_net_twin_target': CriticDDPG(
+  (dense_base_layers): Sequential(
+    (0): Linear(in_features=2, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU()
+  )
+  (dense_layers): Sequential(
+    (0): Linear(in_features=21, out_features=20, bias=True)
+    (1): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU6()
+    (3): Linear(in_features=20, out_features=1, bias=True)
+  )
+), 'optimizer_critic_twin': Adam (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    eps: 0.0001
+    lr: 0.002
+    weight_decay: 0
+)}
+--------------------------------------------------------------------------------
+
+Training:
+
+Episode 0,  Score: -23.84,  Max_score_seen: -23.84, 
+Episode 1,  Score: 80.00,  Max_score_seen: 80.00,  Rolling_score: 28.08,  Max_rolling_score_seen: 28.08
+Episode 2,  Score: 82.21,  Max_score_seen: 82.21,  Changed_LR_Actor: 0.000150,  Changed_LR_Critic: 0.001000,  Rolling_score: 46.12,  Max_rolling_score_seen: 46.12
+Episode 3,  Score: 83.79,  Max_score_seen: 83.79,  Changed_LR_Actor: 0.000030,  Changed_LR_Critic: 0.000200,  Rolling_score: 55.54,  Max_rolling_score_seen: 55.54
+Episode 4,  Score: 83.65,  Max_score_seen: 83.79,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 61.16,  Max_rolling_score_seen: 61.16
+Episode 5,  Score: 78.37,  Max_score_seen: 83.79,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 64.03,  Max_rolling_score_seen: 64.03
+Episode 6,  Score: 89.28,  Max_score_seen: 89.28,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 67.64,  Max_rolling_score_seen: 67.64
+Episode 7,  Score: 87.07,  Max_score_seen: 89.28,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 70.07,  Max_rolling_score_seen: 70.07
+Episode 8,  Score: 90.41,  Max_score_seen: 90.41,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 72.33,  Max_rolling_score_seen: 72.33
+Episode 9,  Score: 90.91,  Max_score_seen: 90.91,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 74.18,  Max_rolling_score_seen: 74.18
+Episode 10,  Score: 85.06,  Max_score_seen: 90.91,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 75.17,  Max_rolling_score_seen: 75.17
+Episode 11,  Score: 82.07,  Max_score_seen: 90.91,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 75.75,  Max_rolling_score_seen: 75.75
+Episode 12,  Score: 82.91,  Max_score_seen: 90.91,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.30,  Max_rolling_score_seen: 76.30
+Episode 13,  Score: 78.80,  Max_score_seen: 90.91,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.48,  Max_rolling_score_seen: 76.48
+Episode 14,  Score: 88.37,  Max_score_seen: 90.91,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.27,  Max_rolling_score_seen: 77.27
+Episode 15,  Score: 85.20,  Max_score_seen: 90.91,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.77,  Max_rolling_score_seen: 77.77
+Episode 16,  Score: 94.40,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.74,  Max_rolling_score_seen: 78.74
+Episode 17,  Score: -24.50,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 73.01,  Max_rolling_score_seen: 78.74
+Episode 18,  Score: -20.68,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 68.08,  Max_rolling_score_seen: 78.74
+Episode 19,  Score: -24.28,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 63.46,  Max_rolling_score_seen: 78.74
+Episode 20,  Score: 73.73,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 63.95,  Max_rolling_score_seen: 78.74
+Episode 21,  Score: 78.48,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 64.61,  Max_rolling_score_seen: 78.74
+Episode 22,  Score: -26.69,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 60.64,  Max_rolling_score_seen: 78.74
+Episode 23,  Score: 88.93,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 61.82,  Max_rolling_score_seen: 78.74
+Episode 24,  Score: 91.74,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 63.01,  Max_rolling_score_seen: 78.74
+Episode 25,  Score: -25.63,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 59.61,  Max_rolling_score_seen: 78.74
+Episode 26,  Score: -24.69,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 56.48,  Max_rolling_score_seen: 78.74
+Episode 27,  Score: 94.28,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 57.83,  Max_rolling_score_seen: 78.74
+Episode 28,  Score: -23.51,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 55.03,  Max_rolling_score_seen: 78.74
+Episode 29,  Score: 79.05,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 55.83,  Max_rolling_score_seen: 78.74
+Episode 30,  Score: 75.52,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 56.46,  Max_rolling_score_seen: 78.74
+Episode 31,  Score: 82.30,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 57.27,  Max_rolling_score_seen: 78.74
+Episode 32,  Score: 74.57,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 57.80,  Max_rolling_score_seen: 78.74
+Episode 33,  Score: 90.40,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 58.76,  Max_rolling_score_seen: 78.74
+Episode 34,  Score: 93.39,  Max_score_seen: 94.40,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 59.74,  Max_rolling_score_seen: 78.74
+Episode 35,  Score: 94.48,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 60.71,  Max_rolling_score_seen: 78.74
+Episode 36,  Score: 86.58,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 61.41,  Max_rolling_score_seen: 78.74
+Episode 37,  Score: 94.21,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 62.27,  Max_rolling_score_seen: 78.74
+Episode 38,  Score: 91.54,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 63.02,  Max_rolling_score_seen: 78.74
+Episode 39,  Score: 91.92,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 63.74,  Max_rolling_score_seen: 78.74
+Episode 40,  Score: 87.91,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 64.33,  Max_rolling_score_seen: 78.74
+Episode 41,  Score: 78.28,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 64.67,  Max_rolling_score_seen: 78.74
+Episode 42,  Score: 92.12,  Max_score_seen: 94.48,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 65.30,  Max_rolling_score_seen: 78.74
+Episode 43,  Score: 94.75,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 65.97,  Max_rolling_score_seen: 78.74
+Episode 44,  Score: 86.12,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 66.42,  Max_rolling_score_seen: 78.74
+Episode 45,  Score: 92.81,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 67.00,  Max_rolling_score_seen: 78.74
+Episode 46,  Score: 89.99,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 67.48,  Max_rolling_score_seen: 78.74
+Episode 47,  Score: 90.79,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000015,  Changed_LR_Critic: 0.000100,  Rolling_score: 67.97,  Max_rolling_score_seen: 78.74
+Episode 48,  Score: 88.63,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 68.39,  Max_rolling_score_seen: 78.74
+Episode 49,  Score: 94.30,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 68.91,  Max_rolling_score_seen: 78.74
+Episode 50,  Score: 82.69,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 69.18,  Max_rolling_score_seen: 78.74
+Episode 51,  Score: 89.72,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 69.58,  Max_rolling_score_seen: 78.74
+Episode 52,  Score: 92.85,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 70.01,  Max_rolling_score_seen: 78.74
+Episode 53,  Score: 92.78,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 70.44,  Max_rolling_score_seen: 78.74
+Episode 54,  Score: 84.68,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 70.70,  Max_rolling_score_seen: 78.74
+Episode 55,  Score: 89.36,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 71.03,  Max_rolling_score_seen: 78.74
+Episode 56,  Score: 86.13,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 71.29,  Max_rolling_score_seen: 78.74
+Episode 57,  Score: 91.37,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 71.64,  Max_rolling_score_seen: 78.74
+Episode 58,  Score: 94.26,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 72.02,  Max_rolling_score_seen: 78.74
+Episode 59,  Score: 93.92,  Max_score_seen: 94.75,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 72.39,  Max_rolling_score_seen: 78.74
+Episode 60,  Score: 95.18,  Max_score_seen: 95.18,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 72.76,  Max_rolling_score_seen: 78.74
+Episode 61,  Score: 88.81,  Max_score_seen: 95.18,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 73.02,  Max_rolling_score_seen: 78.74
+Episode 62,  Score: 84.40,  Max_score_seen: 95.18,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 73.20,  Max_rolling_score_seen: 78.74
+Episode 63,  Score: 91.50,  Max_score_seen: 95.18,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 73.49,  Max_rolling_score_seen: 78.74
+Episode 64,  Score: 94.65,  Max_score_seen: 95.18,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 73.81,  Max_rolling_score_seen: 78.74
+Episode 65,  Score: 78.65,  Max_score_seen: 95.18,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 73.89,  Max_rolling_score_seen: 78.74
+Episode 66,  Score: 95.49,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 74.21,  Max_rolling_score_seen: 78.74
+Episode 67,  Score: 89.89,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 74.44,  Max_rolling_score_seen: 78.74
+Episode 68,  Score: 93.58,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 74.72,  Max_rolling_score_seen: 78.74
+Episode 69,  Score: 90.07,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 74.94,  Max_rolling_score_seen: 78.74
+Episode 70,  Score: 95.02,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 75.22,  Max_rolling_score_seen: 78.74
+Episode 71,  Score: 91.79,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 75.45,  Max_rolling_score_seen: 78.74
+Episode 72,  Score: 88.36,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 75.63,  Max_rolling_score_seen: 78.74
+Episode 73,  Score: 88.27,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 75.80,  Max_rolling_score_seen: 78.74
+Episode 74,  Score: 93.53,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.03,  Max_rolling_score_seen: 78.74
+Episode 75,  Score: 92.36,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.25,  Max_rolling_score_seen: 78.74
+Episode 76,  Score: 79.20,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.29,  Max_rolling_score_seen: 78.74
+Episode 77,  Score: 92.30,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.49,  Max_rolling_score_seen: 78.74
+Episode 78,  Score: 92.66,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.70,  Max_rolling_score_seen: 78.74
+Episode 79,  Score: 79.14,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.73,  Max_rolling_score_seen: 78.74
+Episode 80,  Score: 85.70,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 76.84,  Max_rolling_score_seen: 78.74
+Episode 81,  Score: 94.67,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.06,  Max_rolling_score_seen: 78.74
+Episode 82,  Score: 92.59,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.24,  Max_rolling_score_seen: 78.74
+Episode 83,  Score: 92.62,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.43,  Max_rolling_score_seen: 78.74
+Episode 84,  Score: 90.96,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.58,  Max_rolling_score_seen: 78.74
+Episode 85,  Score: 95.28,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.79,  Max_rolling_score_seen: 78.74
+Episode 86,  Score: 92.17,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 77.96,  Max_rolling_score_seen: 78.74
+Episode 87,  Score: 83.86,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.02,  Max_rolling_score_seen: 78.74
+Episode 88,  Score: 93.54,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.20,  Max_rolling_score_seen: 78.74
+Episode 89,  Score: 92.06,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.35,  Max_rolling_score_seen: 78.74
+Episode 90,  Score: 93.74,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.52,  Max_rolling_score_seen: 78.74
+Episode 91,  Score: 87.16,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.61,  Max_rolling_score_seen: 78.74
+Episode 92,  Score: 93.14,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.77,  Max_rolling_score_seen: 78.77
+Episode 93,  Score: 93.89,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 78.93,  Max_rolling_score_seen: 78.93
+Episode 94,  Score: 86.47,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 79.01,  Max_rolling_score_seen: 79.01
+Episode 95,  Score: 93.03,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 79.16,  Max_rolling_score_seen: 79.16
+Episode 96,  Score: 92.44,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 79.29,  Max_rolling_score_seen: 79.29
+Episode 97,  Score: 90.49,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 79.41,  Max_rolling_score_seen: 79.41
+Episode 98,  Score: 89.56,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 79.51,  Max_rolling_score_seen: 79.51
+Episode 99,  Score: 89.45,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 79.61,  Max_rolling_score_seen: 79.61
+Episode 100,  Score: 92.59,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 80.77,  Max_rolling_score_seen: 80.77
+Episode 101,  Score: 92.67,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 80.90,  Max_rolling_score_seen: 80.90
+Episode 102,  Score: 89.88,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 80.98,  Max_rolling_score_seen: 80.98
+Episode 103,  Score: 93.11,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000003,  Changed_LR_Critic: 0.000020,  Rolling_score: 81.07,  Max_rolling_score_seen: 81.07
+Episode 104,  Score: 93.65,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.17,  Max_rolling_score_seen: 81.17
+Episode 105,  Score: 93.55,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.32,  Max_rolling_score_seen: 81.32
+Episode 106,  Score: 88.89,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.32,  Max_rolling_score_seen: 81.32
+Episode 107,  Score: 90.72,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.35,  Max_rolling_score_seen: 81.35
+Episode 108,  Score: 78.89,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.24,  Max_rolling_score_seen: 81.35
+Episode 109,  Score: 89.23,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.22,  Max_rolling_score_seen: 81.35
+Episode 110,  Score: 92.64,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.30,  Max_rolling_score_seen: 81.35
+Episode 111,  Score: 93.73,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.42,  Max_rolling_score_seen: 81.42
+Episode 112,  Score: 83.09,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.42,  Max_rolling_score_seen: 81.42
+Episode 113,  Score: 90.81,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.54,  Max_rolling_score_seen: 81.54
+Episode 114,  Score: 93.49,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.59,  Max_rolling_score_seen: 81.59
+Episode 115,  Score: 93.63,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.67,  Max_rolling_score_seen: 81.67
+Episode 116,  Score: 86.90,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 81.60,  Max_rolling_score_seen: 81.67
+Episode 117,  Score: 79.71,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 82.64,  Max_rolling_score_seen: 82.64
+Episode 118,  Score: 90.99,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 83.76,  Max_rolling_score_seen: 83.76
+Episode 119,  Score: 94.47,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 84.94,  Max_rolling_score_seen: 84.94
+Episode 120,  Score: 87.04,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 85.08,  Max_rolling_score_seen: 85.08
+Episode 121,  Score: 88.89,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 85.18,  Max_rolling_score_seen: 85.18
+Episode 122,  Score: 94.99,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000001,  Changed_LR_Critic: 0.000004,  Rolling_score: 86.40,  Max_rolling_score_seen: 86.40
+Episode 123,  Score: 95.05,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000000,  Changed_LR_Critic: 0.000002,  Rolling_score: 86.46,  Max_rolling_score_seen: 86.46
+Episode 124,  Score: 92.60,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000000,  Changed_LR_Critic: 0.000002,  Rolling_score: 86.47,  Max_rolling_score_seen: 86.47
+Episode 125,  Score: 88.30,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000000,  Changed_LR_Critic: 0.000002,  Rolling_score: 87.61,  Max_rolling_score_seen: 87.61
+Episode 126,  Score: 93.82,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000000,  Changed_LR_Critic: 0.000002,  Rolling_score: 88.79,  Max_rolling_score_seen: 88.79
+Episode 127,  Score: 91.02,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000000,  Changed_LR_Critic: 0.000002,  Rolling_score: 88.76,  Max_rolling_score_seen: 88.79
+Episode 128,  Score: 93.38,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000000,  Changed_LR_Critic: 0.000002,  Rolling_score: 89.93,  Max_rolling_score_seen: 89.93
+Episode 129,  Score: 95.36,  Max_score_seen: 95.49,  Changed_LR_Actor: 0.000000,  Changed_LR_Critic: 0.000002,  Rolling_score: 90.09,  Max_rolling_score_seen: 90.09
+--------------------------------------------------------------------------------
+Successfully passed the acceptable reward threshold.
+
